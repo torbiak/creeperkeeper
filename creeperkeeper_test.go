@@ -232,7 +232,7 @@ func TestRenderAllSubtitles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = RenderAllSubtitles([]string{videoFile}, "sans", 8)
+	err = RenderAllSubtitles([]string{videoFile}, 8)
 	if err != nil {
 		t.Fatal(err)
 	}

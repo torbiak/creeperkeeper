@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"runtime"
 	"text/template"
 	"time"
 )
@@ -18,7 +17,7 @@ const (
   Download vines and generate subtitles and a playlist.`
 	concatsubsUsage = `crkr concatsubs <playlist> <subtitles>
   Concatenate subtitles for a playlist of videos.`
-	hardsubUsage = `crkr hardsub <playlist> <playlist> [-font <name>] [-fontsize <size>]
+	hardsubUsage = `crkr hardsub [-fontsize <size>] <playlist> <playlist>
   Render subtitles and create a new playlist of subtitled videos.`
 	concatUsage = `crkr concat <playlist> <video>
   Losslessly concatenate a playlist of MP4 videos into one video.`
@@ -29,7 +28,6 @@ var helpFlag *bool
 var verboseFlag *bool
 var templateFlag *string
 var durationFlag *int
-var fontFlag *string
 var fontsizeFlag *int
 
 func init() {
@@ -49,7 +47,6 @@ func init() {
 
 	hardsubFlags = flag.NewFlagSet("hardsub", flag.ContinueOnError)
 	hardsubFlags.SetOutput(ioutil.Discard)
-	fontFlag = hardsubFlags.String("font", "", "Font `name`. (default Arial on Windows, sans otherwise)")
 	fontsizeFlag = hardsubFlags.Int("fontsize", 10, "Font `size`.")
 
 	concatFlags = flag.NewFlagSet("concat", flag.ContinueOnError)
@@ -133,14 +130,7 @@ func main() {
 		}
 		playlistIn := hardsubFlags.Arg(0)
 		playlistOut := hardsubFlags.Arg(1)
-		if *fontFlag == "" {
-			if runtime.GOOS == "windows" {
-				*fontFlag = "Arial"
-			} else {
-				*fontFlag = "sans"
-			}
-		}
-		err = hardsubCmd(playlistIn, playlistOut, *fontFlag, *fontsizeFlag)
+		err = hardsubCmd(playlistIn, playlistOut, *fontsizeFlag)
 	case "concat":
 		err = concatFlags.Parse(cmdArgs)
 		if err != nil {
@@ -232,7 +222,7 @@ func concatsubsCmd(playlist, subtitles string) (err error) {
 	return crkr.ConcatSubtitles(out, plItems)
 }
 
-func hardsubCmd(playlistIn, playlistOut, fontname string, fontsize int) (err error) {
+func hardsubCmd(playlistIn, playlistOut string, fontsize int) (err error) {
 	inFile, err := os.Open(playlistIn)
 	if err != nil {
 		return err
@@ -248,7 +238,7 @@ func hardsubCmd(playlistIn, playlistOut, fontname string, fontsize int) (err err
 		filenames = append(filenames, item.Filename)
 	}
 
-	err = crkr.RenderAllSubtitles(filenames, fontname, fontsize)
+	err = crkr.RenderAllSubtitles(filenames, fontsize)
 	if err != nil {
 		log.Println(err)
 	}

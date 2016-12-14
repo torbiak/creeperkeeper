@@ -205,7 +205,7 @@ func DownloadVines(vines []Vine) error {
 	return nil
 }
 
-func RenderAllSubtitles(filenames []string, font string, fontSize int) error {
+func RenderAllSubtitles(filenames []string, fontSize int) error {
 	// A proactive check to avoid getting an error for every video.
 	_, err := exec.LookPath("ffmpeg")
 	if err != nil {
@@ -235,7 +235,7 @@ func RenderAllSubtitles(filenames []string, font string, fontSize int) error {
 					wg.Done()
 					continue
 				}
-				err = RenderSubtitles(subbed, videoFile, font, fontSize)
+				err = RenderSubtitles(subbed, videoFile, fontSize)
 				if err != nil {
 					log.Println(err)
 					nerrorsLock.Lock()
@@ -303,13 +303,13 @@ func formatExitError(cmd *exec.Cmd, err *exec.ExitError) error {
 
 // RenderSubtitles overlays subtitles in ${videoFile%.mp4}.srt on file to
 // produce ${videoFile%.mp4}.sub.mp4
-func RenderSubtitles(outFile string, videoFile string, font string, fontSize int) error {
+func RenderSubtitles(outFile string, videoFile string, fontSize int) error {
 	basename := strings.TrimSuffix(videoFile, ".mp4")
 	subtitles := basename + ".srt"
 	subtitledVideo := subtitledVideoFilename(videoFile)
 	style := fmt.Sprintf(
-		"subtitles=f=%s:force_style='FontName=%s,Fontsize=%d'",
-		subtitles, font, fontSize)
+		"subtitles=f=%s:force_style='FontName=Arial,Fontsize=%d'",
+		subtitles, fontSize)
 	cmd := exec.Command(
 		"ffmpeg",
 		"-n", // Don't overwrite existing output files.
