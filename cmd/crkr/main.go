@@ -17,7 +17,7 @@ const (
   Download vines and generate subtitles and a playlist.`
 	concatsubsUsage = `crkr concatsubs <playlist> <subtitles>
   Concatenate subtitles for a playlist of videos.`
-	hardsubUsage = `crkr hardsub [-fontsize <size>] <playlist> <playlist>
+	hardsubUsage = `crkr hardsub [-fontsize <size>] <playlist_in> <playlist_out>
   Render subtitles and create a new playlist of subtitled videos.`
 	concatUsage = `crkr concat <playlist> <video>
   Losslessly concatenate a playlist of MP4 videos into one video.`
