@@ -130,9 +130,9 @@ func TestWriteM3U(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `#EXTM3U
-#EXTINF:-1,Guys be like #superbowl #sexism #relatable
+#EXTINF:-1,ig/yt: mielmonster: Guys be like #superbowl #sexism #relatable
 Mz2Wzi73VnI.mp4
-#EXTINF:-1,Idiots Assemble!
+#EXTINF:-1,Ben Willbond: Idiots Assemble!
 bnmHnwVILKD.mp4
 `
 	got := buf.String()
@@ -340,12 +340,14 @@ func TestConcatSubtitles(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `1
-00:00:06,000 -> 00:00:08,000
-v1 line1line2
+00:00:06,000 --> 00:00:08,000
+v1 line1
+line2
 
 2
-00:00:18,000 -> 00:00:20,000
-v3 line1line2
+00:00:18,000 --> 00:00:20,000
+v3 line1
+line2
 
 `
 	got := b.String()

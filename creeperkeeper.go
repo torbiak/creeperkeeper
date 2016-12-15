@@ -619,7 +619,7 @@ type Subtitle struct {
 }
 
 func (s Subtitle) String() string {
-	return fmt.Sprintf("%d\n%s --> %s\n%s\n\n", s.index, formatDuration(s.start), formatDuration(s.stop), s.msg)
+	return fmt.Sprintf("%d\n%s --> %s\n%s\n", s.index, formatDuration(s.start), formatDuration(s.stop), s.msg)
 }
 
 func formatDuration(d time.Duration) string {
@@ -703,6 +703,7 @@ func ParseSubRip(s *bufio.Scanner) (Subtitle, error) {
 	b := &bytes.Buffer{}
 	for s.Scan() && s.Text() != "" {
 		b.WriteString(s.Text())
+		b.WriteString("\n")
 	}
 	sub.msg = b.String()
 	return sub, nil
