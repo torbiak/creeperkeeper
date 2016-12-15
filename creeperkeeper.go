@@ -153,7 +153,7 @@ func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template) erro
 		}
 	}
 	if nerrors > 0 {
-		return fmt.Errorf("errors rendering subtitles for %d/%d vines", nerrors, len(vines))
+		return fmt.Errorf("errors rendering subtitles for %d/%d videos", nerrors, len(vines))
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func RenderAllSubtitles(filenames []string, fontSize int) error {
 				}
 				err = RenderSubtitles(subbed, videoFile, fontSize)
 				if err != nil {
-					log.Println(err)
+					log.Print(err)
 					nerrorsLock.Lock()
 					nerrors += 1
 					nerrorsLock.Unlock()
@@ -249,7 +249,7 @@ func RenderAllSubtitles(filenames []string, fontSize int) error {
 
 	wg.Wait()
 	if nerrors > 0 {
-		return fmt.Errorf("errors rendering subtitles for %d/%d vines", nerrors, len(filenames))
+		return fmt.Errorf("errors rendering subtitles for %d/%d videos", nerrors, len(filenames))
 	}
 	return nil
 }
@@ -298,7 +298,8 @@ func mp4ToTransportStream(inFile, outFile string) error {
 }
 
 func formatExitError(cmd *exec.Cmd, err *exec.ExitError) error {
-	return fmt.Errorf(`%s: %s`, strings.Join(cmd.Args, " "), err.Stderr)
+	return fmt.Errorf("%s: %s:\nstderr:\n%s",
+			err.Error(), strings.Join(cmd.Args, " "), err.Stderr)
 }
 
 // RenderSubtitles overlays subtitles in ${videoFile%.mp4}.srt on file to
@@ -730,7 +731,7 @@ func duration(filename string) (time.Duration, error) {
 		"-of", "default=noprint_wrappers=1:nokey=1",
 		filename)
 	if Verbose {
-		log.Println(strings.Join(cmd.Args, " "))
+		log.Println("run:", strings.Join(cmd.Args, " "))
 	}
 	out, err := cmd.Output()
 	if err != nil {
@@ -797,11 +798,11 @@ func runCmd(cmd *exec.Cmd) error {
 	b := &bytes.Buffer{}
 	cmd.Stderr = b
 	err := cmd.Run()
-	if len(b.String()) > 0 {
-		log.Print("done:", cmdLine, "\nstderr:\n", b.String())
+	if err == nil && len(b.String()) > 0 {
+		log.Print("exit status 0: ", cmdLine, "\nstderr:\n", b.String())
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %s\nstderr:\n%s", err.Error(), cmdLine, b.String())
 	}
 	return nil
 }
