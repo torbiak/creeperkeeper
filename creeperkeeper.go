@@ -639,14 +639,14 @@ func ReadSubRipFile(videoFile string) ([]Subtitle, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	subs, err := ParseAllSubRip(f)
+	subs, err := parseAllSubRip(f)
 	if err != nil {
 		return nil, err
 	}
 	return subs, nil
 }
 
-func ParseAllSubRip(r io.Reader) ([]Subtitle, error) {
+func parseAllSubRip(r io.Reader) ([]Subtitle, error) {
 	subs := []Subtitle{}
 	s := bufio.NewScanner(r)
 	for {
@@ -658,7 +658,7 @@ func ParseAllSubRip(r io.Reader) ([]Subtitle, error) {
 				break
 			}
 		}
-		sub, err := ParseSubRip(s)
+		sub, err := parseSubRip(s)
 		if err != nil {
 			return nil, err
 		}
@@ -667,7 +667,7 @@ func ParseAllSubRip(r io.Reader) ([]Subtitle, error) {
 	return subs, s.Err()
 }
 
-func ParseSubRip(s *bufio.Scanner) (Subtitle, error) {
+func parseSubRip(s *bufio.Scanner) (Subtitle, error) {
 	integerLine := regexp.MustCompile(`^(\d+)$`)
 	intervalLine := regexp.MustCompile(`^(\d\d:\d\d:\d\d,\d\d\d) --> (\d\d:\d\d:\d\d,\d\d\d)$`)
 
