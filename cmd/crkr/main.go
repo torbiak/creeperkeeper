@@ -229,6 +229,9 @@ func hardsubCmd(playlistIn, playlistOut string, fontsize int) (err error) {
 	}
 	defer inFile.Close()
 	plItems, err := crkr.ReadM3U(inFile)
+	if err != nil {
+		return err
+	}
 
 	filenames := []string{}
 	for _, item := range plItems {
@@ -252,7 +255,10 @@ func hardsubCmd(playlistIn, playlistOut string, fontsize int) (err error) {
 			err = cerr
 		}
 	}()
-	inFile.Seek(0, os.SEEK_SET)
+	_, err = inFile.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return err
+	}
 	return crkr.HardSubM3U(outFile, inFile)
 }
 
