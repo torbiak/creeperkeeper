@@ -374,8 +374,11 @@ func TestHardSubM3U(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	videos := []string{dir + "a.mp4", dir + "b.mp4"}
-	for _, f := range videos {
+	videos := []string{}
+	for _, name := range []string{"a", "b", "c"} {
+		videos = append(videos, filepath.Join(dir, name + ".mp4"))
+	}
+	for _, f := range videos[:2] {
 		writeFile(t, subtitledVideoFilename(f), "")
 	}
 	playlist := fmt.Sprintf(`#EXTM3U
@@ -384,7 +387,9 @@ func TestHardSubM3U(t *testing.T) {
 #nosubtitles
 #EXTINF:-1,Idiots Assemble!
 %s
-`, videos[0], videos[1])
+#EXTINF:-1,My First Vine.
+%s
+`, videos[0], videos[1], videos[2])
 	subbed := []string{}
 	for _, f := range videos {
 		subbed = append(subbed, subtitledVideoFilename(f))
@@ -400,7 +405,9 @@ func TestHardSubM3U(t *testing.T) {
 #nosubtitles
 #EXTINF:-1,Idiots Assemble!
 %s
-`, subbed[0], videos[1])
+#EXTINF:-1,My First Vine.
+%s
+`, subbed[0], videos[1], videos[2])
 	got := b.String()
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)

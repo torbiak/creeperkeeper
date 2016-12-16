@@ -748,34 +748,30 @@ func duration(filename string) (time.Duration, error) {
 // HardSubM3U takes an existing M3U playlist as r and replaces videos with
 // their hardsub versions, if they exist and the entry isn't preceded by a
 // nosubtitles annotation.
-func HardSubM3U(w io.Writer, r io.Reader) (err error) {
+func HardSubM3U(w io.Writer, r io.Reader) error {
 	s := bufio.NewScanner(r)
 	noSubs := false
-	write := func(s string) {
-		if err != nil {
-			return
-		}
-		_, err = fmt.Fprintln(w, s)
-	}
-	for s.Scan() && err == nil {
-		if !noSubs && noSubsRE.MatchString(s.Text()) {
+	b := &bytes.Buffer{}
+	for s.Scan() {
+		if noSubsRE.MatchString(s.Text()) {
 			noSubs = true
 		}
 		if strings.HasPrefix(s.Text(), "#") {
-			write(s.Text())
-			continue
-		}
-		if noSubs {
-			noSubs = false
-			write(s.Text())
+			fmt.Fprintln(b, s.Text())
 			continue
 		}
 		subbed := subtitledVideoFilename(s.Text())
-		if !fileExists(subbed) {
-			write(s.Text())
-			continue
+		if noSubs || !fileExists(subbed) {
+			fmt.Fprintln(b, s.Text())
+		} else {
+			fmt.Fprintln(b, subbed)
 		}
-		write(subbed)
+		_, err := fmt.Fprint(w, b.String())
+		if err != nil {
+			return err
+		}
+		noSubs = false
+		b.Reset()
 	}
 	return nil
 }
