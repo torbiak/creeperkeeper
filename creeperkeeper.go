@@ -6,6 +6,7 @@ package creeperkeeper
 // According to Example 3 relative pathnames should work: https://en.wikipedia.org/wiki/M3U#Examples
 //curl 'https://vine.co/api/timelines/users/1108673385032228864/likes?page=1&size=1' | jq . | less
 // fontconfig seems to have trouble resolving very general names like "sans" on Windows, so use Arial, which has been included with every Windows since Windows 98. On other operating systems "sans" is expected to resolve to something reasonable.
+// ffmpeg -i $f -af loudnorm -c:v copy ${f%.mp4}.norm.mp4
 
 import (
 	"bufio"
