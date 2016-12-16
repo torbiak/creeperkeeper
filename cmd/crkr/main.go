@@ -39,15 +39,15 @@ func init() {
 
 	getFlags = flag.NewFlagSet("get", flag.ContinueOnError)
 	getFlags.SetOutput(ioutil.Discard)
-	templateFlag = getFlags.String("subformat", "{{.Uploader}}{{if .Title}}: {{.Title}}{{end}}", "Subtitle template. See README for details.")
-	durationFlag = getFlags.Int("t", 2, "Subtitle `duration` in seconds.")
+	templateFlag = getFlags.String("subformat", "{{.Uploader}}{{if .Title}}: {{.Title}}{{end}}", "subtitle template. See README for details.")
+	durationFlag = getFlags.Int("t", 2, "subtitle `duration` in seconds.")
 
 	concatsubsFlags = flag.NewFlagSet("concatsubs", flag.ContinueOnError)
 	concatsubsFlags.SetOutput(ioutil.Discard)
 
 	hardsubFlags = flag.NewFlagSet("hardsub", flag.ContinueOnError)
 	hardsubFlags.SetOutput(ioutil.Discard)
-	fontsizeFlag = hardsubFlags.Int("fontsize", 10, "Font `size`.")
+	fontsizeFlag = hardsubFlags.Int("fontsize", 10, "font `size`.")
 
 	concatFlags = flag.NewFlagSet("concat", flag.ContinueOnError)
 	concatFlags.SetOutput(ioutil.Discard)
