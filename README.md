@@ -34,9 +34,9 @@ Use Creeper Keeper to download Vines and generate subtitles. URLs for single Vin
 
 The subformat option for the get command specifies a Go text template to use for generating subtitles. Available fields are `Title`, `Uploader`, `Venue`, and `Created` (which is a `time.Time`). See the docs for the [text/template](https://golang.org/pkg/text/template/) and [time](https://golang.org/pkg/time/) packages for details. eg: `{{.Uploader}} on {{.Date.Format "2006-01-02"}} at {{.Venue}}: {{.Title}}`
 
-If desired, modify the M3U playlist using a video player or text editor. Many video players will automatically display SubRip subtitles contained in a file having the same name as the playing video file, apart from the file extension.
+If desired, modify the M3U playlist using a video player or text editor. Many video players will automatically display SubRip subtitles contained in a file having the same name as the playing video file, apart from the file extension. To disable subtitles for a playlist entry include a `# nosubtitles` comment above it; this can be useful for repeating an entry but only displaying subtitles for the first instance. 
 
-The subtitles for a playlist can be joined together into a single SubRip file, adjusting the intervals based on the videos' durations. To disable subtitles for a playlist entry include a `# nosubtitles` comment above it; this can be useful for repeating an entry but only displaying subtitles for the first instance.
+The subtitles for a playlist can be joined together into a single SubRip file, adjusting the intervals based on the videos' durations. The duration of concatenated Vines is usually slightly different than the duration of the component videos, and these hundredths of seconds add up over a long compilation. For long compilations the timings will need to be corrected manually.
 
     crkr concatsubs miel.m3u miel.srt
 
@@ -49,3 +49,7 @@ Soft subtitles are recommended as the video won't need to be re-encoded, preserv
 Assuming all the videos in a playlist are mp4 they can be losslessly concatenated (ie they will not be transcoded/re-encoded):
 
     crkr concat miel.m3u miel.mp4
+
+Finally, a version of ffmpeg with the `loudnorm` filter can normalize the audio loudness:
+
+    ffmpeg -i miel.mp4 -af loudnorm miel.norm.mp4

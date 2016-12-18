@@ -138,6 +138,9 @@ func WriteM3U(w io.Writer, vines []Vine) error {
 }
 
 func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template) error {
+	if Verbose {
+		log.Println("write subtitles")
+	}
 	var nerrors = 0
 	for _, vine := range vines {
 		subs, err := vine.Subtitles(t, tmpl)
@@ -159,9 +162,22 @@ func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template) erro
 	return nil
 }
 
+type SyncCounter struct {
+	val int
+	lock sync.Mutex
+}
+
+func (s *SyncCounter) Add(n int) int {
+	s.lock.Lock()
+	s.val += n
+	cur := s.val
+	s.lock.Unlock()
+	return cur
+}
+
 func DownloadVines(vines []Vine) error {
-	nerrors := 0
-	nerrorsLock := &sync.Mutex{}
+	nerrors := &SyncCounter{}
+	nstarted := &SyncCounter{}
 
 	// Producer
 	work := make(chan Vine)
@@ -177,8 +193,12 @@ func DownloadVines(vines []Vine) error {
 	for i := 0; i < runtime.NumCPU(); i++ {
 		go func() {
 			for vine := range work {
+				i := nstarted.Add(1)
 				if _, err := os.Stat(vine.VideoFilename()); err == nil {
 					// Skip videos that have already been downloaded.
+					if Verbose {
+						log.Printf("skip get %d/%d: %s", i, len(vines), vine.VideoFilename())
+					}
 					wg.Done()
 					continue
 				}
@@ -187,12 +207,13 @@ func DownloadVines(vines []Vine) error {
 					wg.Done()
 					continue
 				}
+				if Verbose {
+					log.Printf("get %d/%d: %s", i, len(vines), vine.VideoFilename())
+				}
 				err = vine.Download(f)
 				if err != nil {
 					log.Println(err)
-					nerrorsLock.Lock()
-					nerrors += 1
-					nerrorsLock.Unlock()
+					nerrors.Add(1)
 				}
 				wg.Done()
 			}
@@ -200,8 +221,8 @@ func DownloadVines(vines []Vine) error {
 	}
 
 	wg.Wait()
-	if nerrors > 0 {
-		return fmt.Errorf("errors downloading %d/%d vines", nerrors, len(vines))
+	if nerrors.val > 0 {
+		return fmt.Errorf("errors downloading %d/%d vines", nerrors.val, len(vines))
 	}
 	return nil
 }
@@ -255,10 +276,58 @@ func RenderAllSubtitles(filenames []string, fontSize int) error {
 	return nil
 }
 
+// Only one vine gets into the output: the rest are skipped due to duplicate
+// moov atoms.
+func ConcatVideosWithProtocol(videoFiles []string, outFile string) error {
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-v", "warning",
+		"-i", "concat:" + strings.Join(videoFiles, "|"),
+		"-c", "copy",
+		outFile)
+	return runCmd(cmd)
+}
+
+
+// Lots of broken segments in the output.
+func ConcatVideosWithDemuxer(videoFiles []string, outFile string) error {
+	tmpFile, err := ioutil.TempFile("", "crkr_concat")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+	for _, f := range videoFiles {
+		_, err := fmt.Fprintf(tmpFile, "file '%s'\n", f)
+		if err != nil {
+			tmpFile.Close()
+			return err
+		}
+	}
+	err = tmpFile.Close()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-v", "warning",
+		"-f", "concat",
+		// "safe" filenames are relative and can only consist of
+		// [a-zA-Z0-9_.-].
+		"-safe", "0",
+		"-i", tmpFile.Name(),
+		"-c", "copy",
+		outFile)
+	return runCmd(cmd)
+}
+
+var ConcatVideos = ConcatVideosLosslessly
+
 //ffmpeg -i input1.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate1.ts
 //ffmpeg -i input2.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate2.ts
 //ffmpeg -i "concat:intermediate1.ts|intermediate2.ts" -c copy -bsf:a aac_adtstoasc output.mp4
-func ConcatVideos(videoFiles []string, outFile string) error {
+func ConcatVideosLosslessly(videoFiles []string, outFile string) error {
 	dir, err := ioutil.TempDir("", "crkr")
 	if err != nil {
 		return err
@@ -267,7 +336,8 @@ func ConcatVideos(videoFiles []string, outFile string) error {
 
 	tsFiles := []string{}
 	for _, f := range videoFiles {
-		tsFile := filepath.Join(dir, strings.TrimSuffix(f, ".mp4")+".ts")
+		base := filepath.Base(f)
+		tsFile := filepath.Join(dir, strings.TrimSuffix(base, ".mp4") + ".ts")
 		tsFiles = append(tsFiles, tsFile)
 		err := mp4ToTransportStream(f, tsFile)
 		if err != nil {
@@ -276,7 +346,7 @@ func ConcatVideos(videoFiles []string, outFile string) error {
 	}
 	cmd := exec.Command(
 		"ffmpeg",
-		"-n",
+		"-y",
 		"-v", "warning",
 		"-i", "concat:"+strings.Join(tsFiles, "|"),
 		"-c", "copy",
@@ -293,6 +363,7 @@ func mp4ToTransportStream(inFile, outFile string) error {
 		"-i", inFile,
 		"-c", "copy",
 		"-bsf:v", "h264_mp4toannexb",
+		"-shortest",
 		"-f", "mpegts",
 		outFile)
 	return runCmd(cmd)
@@ -585,7 +656,7 @@ func ConcatSubtitles(w io.Writer, playlist []plItem) error {
 	i := 0
 
 	for _, e := range playlist {
-		dur, err := duration(e.Filename)
+		dur, err := shortestStreamDuration(e.Filename)
 		if err != nil {
 			return err
 		}
@@ -724,7 +795,41 @@ func parseSubRipDuration(subRip string) (time.Duration, error) {
 	return dur, nil
 }
 
-func duration(filename string) (time.Duration, error) {
+func shortestStreamDuration(filename string) (time.Duration, error) {
+	streamDurationRE := regexp.MustCompile(`streams.stream.\d+.duration="([^"]+)"`)
+	cmd := exec.Command(
+		"ffprobe",
+		"-v", "error",
+		"-show_streams",
+		"-show_entries", "stream=duration:stream_tags=:disposition=",
+		"-of", "flat",
+		filename)
+	stdout, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	shortest := 0.0
+	for i, m := range streamDurationRE.FindAllSubmatch(stdout, -1) {
+		dur, err := strconv.ParseFloat(string(m[1]), 64)
+		if err != nil {
+			return 0, err
+		}
+		if i == 0 {
+			shortest = dur
+		}
+		// TODO: > -> <
+		if dur > shortest {
+			shortest = dur
+		}
+	}
+	// Concatenating videos results in a small change in their
+	// duration. Subtitles become noticeably out-of-sync after a few dozen
+	// vines unless this is accounted for. The delay varies
+	shortest += 0.038
+	return time.Duration(shortest * 1e6) * time.Microsecond, nil
+}
+
+func containerDuration(filename string) (time.Duration, error) {
 	cmd := exec.Command(
 		"ffprobe",
 		"-v", "error",
@@ -742,6 +847,7 @@ func duration(filename string) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
+	seconds += 0.04
 	return time.Duration(seconds * 1e6) * time.Microsecond, nil
 }
 

@@ -283,14 +283,21 @@ func TestConcatVideos(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long test")
 	}
-	files := []string{"blank1.mp4", "blank2.mp4"}
-	defer remove(t, files...)
-	for i := 1; i <= 2; i++ {
-		writeBlankVideo(t, fmt.Sprintf("blank%d.mp4", i))
+	dir, err := ioutil.TempDir("", "crkr_concat")
+	if err != nil {
+		t.Fatal(err)
 	}
-	outputVideo := "blank3.mp4"
-	err := ConcatVideos(files, outputVideo)
-	defer remove(t, outputVideo)
+	defer os.RemoveAll(dir)
+
+	files := []string{
+		filepath.Join(dir, "blank1.mp4"),
+		filepath.Join(dir, "blank2.mp4"),
+	}
+	for _, f := range files {
+		writeBlankVideo(t, f)
+	}
+	outputVideo := filepath.Join(dir, "blank3.mp4")
+	err = ConcatVideos(files, outputVideo)
 	if err != nil {
 		t.Fatal(err)
 	}

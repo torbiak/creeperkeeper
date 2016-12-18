@@ -27,7 +27,7 @@ var globalFlags, getFlags, concatsubsFlags, hardsubFlags, concatFlags *flag.Flag
 var helpFlag *bool
 var verboseFlag *bool
 var templateFlag *string
-var durationFlag *int
+var durationFlag *float64
 var fontsizeFlag *int
 
 func init() {
@@ -40,7 +40,7 @@ func init() {
 	getFlags = flag.NewFlagSet("get", flag.ContinueOnError)
 	getFlags.SetOutput(ioutil.Discard)
 	templateFlag = getFlags.String("subformat", "{{.Uploader}}{{if .Title}}: {{.Title}}{{end}}", "subtitle template. See README for details.")
-	durationFlag = getFlags.Int("t", 2, "subtitle `duration` in seconds.")
+	durationFlag = getFlags.Float64("t", 2.5, "subtitle `duration` in seconds.")
 
 	concatsubsFlags = flag.NewFlagSet("concatsubs", flag.ContinueOnError)
 	concatsubsFlags.SetOutput(ioutil.Discard)
@@ -153,7 +153,7 @@ func main() {
 	}
 }
 
-func getCmd(url, playlist, subFormat string, subDuration int) error {
+func getCmd(url, playlist, subFormat string, subDuration float64) error {
 	tmpl, err := template.New("subtitles").Parse(subFormat)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func getCmd(url, playlist, subFormat string, subDuration int) error {
 		log.Print(err)
 	}
 
-	dur := time.Duration(subDuration) * time.Second
+	dur := time.Duration(subDuration * 1e6) * time.Microsecond
 	if err := crkr.WriteSubtitles(vines, dur, tmpl); err != nil {
 		nerrors++
 		log.Print(err)
