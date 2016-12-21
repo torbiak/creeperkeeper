@@ -34,7 +34,15 @@ Use Creeper Keeper to download Vines and generate subtitles. URLs for single Vin
     # Produces <UUID>.srt...
     crkr subtitles miel.m3u
 
-The subformat option for the get command specifies a Go text template to use for generating subtitles. Available fields are `Title`, `Uploader`, `Venue`, and `Created` (which is a `time.Time`). See the docs for the [text/template](https://golang.org/pkg/text/template/) and [time](https://golang.org/pkg/time/) packages for details. eg: `{{.Uploader}} on {{.Date.Format "2006-01-02"}} at {{.Venue}}: {{.Title}}`
+The subformat option for the get command specifies a Go text template to use for generating subtitles. Available fields are `Title`, `Uploader`, `Venue`, and `Created` (which is a `time.Time`). See the docs for the [text/template](https://golang.org/pkg/text/template/) and [time](https://golang.org/pkg/time/) packages for details.
+
+A verbose example:
+
+    {{.Uploader}} on {{.Date.Format "2006-01-02"}} at {{.Venue}}: {{.Title}}
+
+When compiling a creator's Vines it might be nice to only show the uploader if the Vine was a repost:
+
+    {{if ne .Uploader "mielmonster"}}[{{.Uploader}}] {{end}}{{.Title}}
 
 If desired, modify the M3U playlist using a video player or text editing tools. Many video players will automatically display SubRip subtitles contained in a file having the same name as the playing video file, apart from the file extension.
 
@@ -49,3 +57,7 @@ To skip rendering subtitles for a playlist entry include a `# nosubtitles` comme
 Assuming all the videos in a playlist are mp4 they can be losslessly concatenated (ie they will not be transcoded/re-encoded):
 
     crkr concat miel.m3u miel.mp4
+
+## Emoji
+
+Emoji are heavily used in many Vine descriptions but they are far from being universally supported. If burnt subtitle emoji are all displayed as replacement characters (commonly represented by an empty rectangle glyph), fontconfig probably can't find an installed font containing them. Free emoji fonts with permissive licenses are available, such as Google's [Noto](https://www.google.com/get/noto/) family. If the given font doesn't contain emoji glyphs fontconfig will take glyphs from a font that does---letters might be from Arial but the emoji could be from Segoe UI, for example. If unexpected glyphs are being displayed after emoji, try using the `subtitles` command's `-plainemoji` option to remove variation selectors, which are mainly used to change the color of the preceding emoji and are relatively new and unsupported.

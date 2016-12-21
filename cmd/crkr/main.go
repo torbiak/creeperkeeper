@@ -19,10 +19,9 @@ type Cmd interface {
 	Run(args []string)
 }
 
-
 type GetCmd struct {
-	flagSet *flag.FlagSet
-	url string
+	flagSet  *flag.FlagSet
+	url      string
 	playlist string
 }
 
@@ -54,7 +53,7 @@ func (c *GetCmd) Run(args []string) {
 
 	nerrors := 0
 
-	if err := crkr.WriteMetadata(vines); err != nil {
+	if err := crkr.WriteAllVineMetadata(vines); err != nil {
 		nerrors++
 		log.Printf("write metadata: %s", err)
 	}
@@ -104,12 +103,12 @@ func writeM3U(m3uFile string, vines []crkr.Vine) (err error) {
 	return nil
 }
 
-
 type SubtitlesCmd struct {
-	flagSet *flag.FlagSet
-	format string
-	duration float64
-	playlist string
+	flagSet    *flag.FlagSet
+	plainEmoji bool
+	format     string
+	duration   float64
+	playlist   string
 }
 
 func (c *SubtitlesCmd) flags() *flag.FlagSet {
@@ -118,8 +117,9 @@ func (c *SubtitlesCmd) flags() *flag.FlagSet {
 	}
 	c.flagSet = flag.NewFlagSet("subtitles", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
-	c.flagSet.StringVar(&c.format, "subformat", "{{.Uploader}}{{if .Title}}: {{.Title}}{{end}}", "subtitle template. See README for details.")
+	c.flagSet.StringVar(&c.format, "format", "[{{.Uploader}}] {{.Title}}", "subtitle template. See README for details.")
 	c.flagSet.Float64Var(&c.duration, "t", 2.5, "subtitle `duration` in seconds")
+	c.flagSet.BoolVar(&c.plainEmoji, "plainemoji", false, "remove emoji variation selectors")
 	return c.flagSet
 }
 
@@ -144,8 +144,8 @@ func (c *SubtitlesCmd) Run(args []string) {
 	if err != nil {
 		log.Fatalf("read metadata: %s", err)
 	}
-	dur := time.Duration(c.duration * 1e6) * time.Microsecond
-	err = crkr.WriteSubtitles(vines, dur, tmpl)
+	dur := time.Duration(c.duration*1e6) * time.Microsecond
+	err = crkr.WriteSubtitles(vines, dur, tmpl, c.plainEmoji)
 	if err != nil {
 		log.Fatalf("write subtitles: %s", err)
 	}
@@ -164,11 +164,10 @@ func (c *SubtitlesCmd) parseArgs(args []string) error {
 	return nil
 }
 
-
 type HardSubCmd struct {
-	flagSet *flag.FlagSet
-	font string
-	fontSize int
+	flagSet       *flag.FlagSet
+	font          string
+	fontSize      int
 	m3uIn, m3uOut string
 }
 
@@ -178,7 +177,7 @@ func (c *HardSubCmd) flags() *flag.FlagSet {
 	}
 	c.flagSet = flag.NewFlagSet("hardsub", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
-	c.flagSet.IntVar(&c.fontSize, "fontsize", 10, "font `size`")
+	c.flagSet.IntVar(&c.fontSize, "fontsize", 12, "font `size`")
 	c.flagSet.StringVar(&c.font, "font", "Arial", "font `name`")
 	return c.flagSet
 }
@@ -249,11 +248,10 @@ func (c *HardSubCmd) parseArgs(args []string) error {
 	return nil
 }
 
-
 type ConcatCmd struct {
-	flagSet *flag.FlagSet
+	flagSet  *flag.FlagSet
 	playlist string
-	video string
+	video    string
 }
 
 func (c *ConcatCmd) flags() *flag.FlagSet {
@@ -340,10 +338,10 @@ func main() {
 	log.SetFlags(log.Ltime)
 
 	commands := map[string]Cmd{
-		"get": &GetCmd{},
+		"get":       &GetCmd{},
 		"subtitles": &SubtitlesCmd{},
-		"hardsub": &HardSubCmd{},
-		"concat": &ConcatCmd{},
+		"hardsub":   &HardSubCmd{},
+		"concat":    &ConcatCmd{},
 	}
 
 	globalFlags := flag.NewFlagSet("crkr", flag.ContinueOnError)

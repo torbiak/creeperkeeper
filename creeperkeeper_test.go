@@ -15,15 +15,7 @@ import (
 	"time"
 )
 
-var subTemplate *template.Template
-
-func init() {
-	var err error
-	subTemplate, err = template.New("subtitles").Parse("{{.Title}}")
-	if err != nil {
-		panic(err)
-	}
-}
+var subTemplate = template.Must(template.New("subtitles").Parse("{{.Title}}"))
 
 func TestExtractVines_singleVine(t *testing.T) {
 	if testing.Short() {
@@ -205,7 +197,6 @@ bnmHnwVILKD.mp4`
 	}
 }
 
-
 func TestRenderAllSubtitles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long test")
@@ -280,7 +271,6 @@ func videoHash(filepath string) (string, error) {
 	return buf.String(), err
 }
 
-
 func TestConcatVideos(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long test")
@@ -316,7 +306,6 @@ func filesize(t *testing.T, filename string) int64 {
 	return info.Size()
 }
 
-
 func TestHardSubM3U(t *testing.T) {
 	dir, err := ioutil.TempDir("", "crkr_whsm")
 	if err != nil {
@@ -325,7 +314,7 @@ func TestHardSubM3U(t *testing.T) {
 	defer os.RemoveAll(dir)
 	videos := []string{}
 	for _, name := range []string{"a", "b", "c"} {
-		videos = append(videos, filepath.Join(dir, name + ".mp4"))
+		videos = append(videos, filepath.Join(dir, name+".mp4"))
 	}
 	for _, f := range videos[:2] {
 		writeFile(t, subtitledVideoFilename(f), "")
@@ -374,7 +363,6 @@ func writeFile(t *testing.T, file string, contents string) {
 		t.Fatal(err)
 	}
 }
-
 
 func TestMetadataCodec(t *testing.T) {
 	dir, err := ioutil.TempDir("", "crkr_metacodec")
