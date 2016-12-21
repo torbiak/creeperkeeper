@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -37,13 +36,10 @@ var Verbose = false
 var fallbackUUIDCount = 0
 var uuidMutex = sync.Mutex{}
 
-var userURLRE *regexp.Regexp
-var noSubsRE *regexp.Regexp
+var userURLRE = regexp.MustCompile(`(?:https?://)?vine\.co/(u/)?([^/]+)(/likes)?/?(\?.*)?$`)
+var noSubsRE = regexp.MustCompile("^# *nosubtitles")
+var vineURLRE = regexp.MustCompile(`https://vine\.co/v/([a-zA-Z0-9]+)$`)
 
-func init() {
-	userURLRE = regexp.MustCompile(`(?:https?://)?vine\.co/(u/)?([^/]+)(/likes)?/?(\?.*)?$`)
-	noSubsRE = regexp.MustCompile("^# *nosubtitles")
-}
 
 type Vine struct {
 	Title    string
@@ -75,6 +71,10 @@ func (v Vine) SubtitlesFilename() string {
 	return v.UUID + ".srt"
 }
 
+func (v Vine) MetadataFilename() string {
+	return v.UUID + ".json"
+}
+
 func (v Vine) Subtitles(t time.Duration, tmpl *template.Template) (string, error) {
 	stopTime := fmt.Sprintf("%02.0f:%02.0f:%02.0f,%03d", t.Hours(), t.Minutes(), t.Seconds(), (t.Nanoseconds()/1e6)%1000)
 
@@ -89,7 +89,7 @@ func (v Vine) Subtitles(t time.Duration, tmpl *template.Template) (string, error
 	subtitle := strings.NewReplacer("\r", "", "\n\n", "\n").Replace(b.String())
 
 	subtitle = strings.TrimSpace(subtitle)
-	return fmt.Sprintf("1\n00:00:00,000 --> %s\n%s", stopTime, subtitle), nil
+	return fmt.Sprintf("1\n00:00:00,000 --> %s\n%s\n", stopTime, subtitle), nil
 }
 
 // Extended M3U entry.
@@ -100,6 +100,65 @@ func (v Vine) M3UEntry() string {
 	title = strings.Replace(title, "\n", " ", -1)
 	return fmt.Sprintf("#EXTINF:-1,%s: %s\n%s", v.Uploader, title, v.VideoFilename())
 }
+
+func (v Vine) WriteMetadata(w io.Writer) (err error) {
+	enc := json.NewEncoder(w)
+	err = enc.Encode(v)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ReadMetadataForPlaylist(playlist string) ([]Vine, error) {
+	f, err := os.Open(playlist)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	plItems, err := ReadM3U(f)
+	if err != nil {
+		return nil, err
+	}
+	videoFiles := make([]string, len(plItems))
+	for i, item := range plItems {
+		videoFiles[i] = metadataFilename(item.Filename)
+	}
+	return ReadAllVineMetadata(videoFiles)
+}
+
+func ReadAllVineMetadata(filenames []string) ([]Vine, error) {
+	nerr := 0
+	vines := make([]Vine, len(filenames))
+	for i, filename := range filenames {
+		var err error
+		vines[i], err = ReadVineMetadata(filename)
+		if err != nil {
+			nerr++
+			log.Printf("read metadata from %s: %s", filename, err)
+		}
+	}
+	if nerr > 0 {
+		return vines, fmt.Errorf("%d/%d failed", nerr, len(filenames))
+	}
+	return vines, nil
+}
+
+func ReadVineMetadata(filename string) (Vine, error) {
+	var vine Vine
+	f, err := os.Open(filename)
+	if err != nil {
+		return vine, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	err = dec.Decode(&vine)
+	if err != nil {
+		return vine, err
+	}
+	return vine, err
+}
+
 
 type plItem struct {
 	Filename    string
@@ -123,6 +182,7 @@ func ReadM3U(r io.Reader) (playlist []plItem, err error) {
 	return playlist, s.Err()
 }
 
+
 func WriteM3U(w io.Writer, vines []Vine) error {
 	_, err := fmt.Fprintln(w, "#EXTM3U")
 	if err != nil {
@@ -137,27 +197,52 @@ func WriteM3U(w io.Writer, vines []Vine) error {
 	return nil
 }
 
-func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template) error {
-	if Verbose {
-		log.Println("write subtitles")
+func WriteAllVineMetadata(vines []Vine) error {
+	nerr := 0
+	for _, vine := range vines {
+		err := WriteVineMetadata(vine)
+		if err != nil {
+			log.Printf("write metadata for %s: %s", vine.UUID, err)
+			nerr++
+		}
 	}
+	if nerr > 0 {
+		return fmt.Errorf("%d/%d failed", nerr, len(vines))
+	}
+	return nil
+}
+
+func WriteVineMetadata(vine Vine) error {
+	f, err := os.Create(vine.MetadataFilename())
+	if err != nil {
+		return err
+	}
+	defer func(){
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	return vine.WriteMetadata(f)
+}
+
+func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template) error {
 	var nerrors = 0
 	for _, vine := range vines {
 		subs, err := vine.Subtitles(t, tmpl)
 		if err != nil {
 			nerrors += 1
-			log.Print(err)
+			log.Printf("write subtitles for %s: %s", vine.UUID, err)
 			// Maybe we should return on a template.ExecError?
 			continue
 		}
 		err = ioutil.WriteFile(vine.SubtitlesFilename(), []byte(subs), 0666)
 		if err != nil {
 			nerrors += 1
-			log.Print(err)
+			log.Printf("write subtitles for %s: %s", vine.UUID, err)
 		}
 	}
 	if nerrors > 0 {
-		return fmt.Errorf("errors rendering subtitles for %d/%d videos", nerrors, len(vines))
+		return fmt.Errorf("write subtitles: %d/%d failed", nerrors, len(vines))
 	}
 	return nil
 }
@@ -176,41 +261,57 @@ func (s *SyncCounter) Add(n int) int {
 }
 
 func DownloadVines(vines []Vine) error {
+	f := func(i interface{}) (err error) {
+		vine := i.(Vine)
+		file, err := os.Create(vine.VideoFilename())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if cerr := file.Close(); err == nil && cerr != nil {
+				err = cerr
+			}
+		}()
+		err = vine.Download(file)
+		if err != nil {
+			log.Printf("get [%s] \"%.20s\": %s", vine.Uploader, vine.Title, err)
+		} else if Verbose {
+			log.Printf("got [%s] %s", vine.Uploader, vine.Title)
+		}
+		return err
+	}
+
+	// Convert []Vine to []interface{}
+	jobs := make([]interface{}, len(vines))
+	for i, v := range vines {
+		jobs[i] = v
+	}
+
+	nerr := parallel(jobs, f, 4)
+	if nerr > 0 {
+		return fmt.Errorf("%d/%d failed", nerr, len(vines))
+	}
+	return nil
+}
+
+func parallel(jobs []interface{}, f func(interface{}) error, atOnce int) (nerr int) {
 	nerrors := &SyncCounter{}
-	nstarted := &SyncCounter{}
 
 	// Producer
-	work := make(chan Vine)
+	jobq := make(chan interface{})
 	go func() {
-		for _, vine := range vines {
-			work <- vine
+		for _, job := range jobs {
+			jobq <- job
 		}
 	}()
 
-	// Consumers.
+	// Consumers
 	wg := &sync.WaitGroup{}
-	wg.Add(len(vines))
-	for i := 0; i < runtime.NumCPU(); i++ {
+	wg.Add(len(jobs))
+	for i := 0; i < atOnce; i++ {
 		go func() {
-			for vine := range work {
-				i := nstarted.Add(1)
-				if _, err := os.Stat(vine.VideoFilename()); err == nil {
-					// Skip videos that have already been downloaded.
-					if Verbose {
-						log.Printf("skip get %d/%d: %s", i, len(vines), vine.VideoFilename())
-					}
-					wg.Done()
-					continue
-				}
-				f, err := os.Create(vine.VideoFilename())
-				if err != nil {
-					wg.Done()
-					continue
-				}
-				if Verbose {
-					log.Printf("get %d/%d: %s", i, len(vines), vine.VideoFilename())
-				}
-				err = vine.Download(f)
+			for job := range jobq {
+				err := f(job)
 				if err != nil {
 					log.Println(err)
 					nerrors.Add(1)
@@ -219,115 +320,41 @@ func DownloadVines(vines []Vine) error {
 			}
 		}()
 	}
-
 	wg.Wait()
-	if nerrors.val > 0 {
-		return fmt.Errorf("errors downloading %d/%d vines", nerrors.val, len(vines))
-	}
-	return nil
+	return nerrors.val
 }
 
-func RenderAllSubtitles(filenames []string, fontSize int) error {
+func RenderAllSubtitles(filenames []string, fontName string, fontSize int) error {
 	// A proactive check to avoid getting an error for every video.
 	_, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return fmt.Errorf("ffmpeg not found in PATH")
 	}
-	nerrors := 0
-	nerrorsLock := &sync.Mutex{}
 
-	// Producer
-	work := make(chan string)
-	go func() {
-		for _, base := range filenames {
-			work <- base
-		}
-	}()
-
-	// Consumers.
-	wg := &sync.WaitGroup{}
-	wg.Add(len(filenames))
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go func() {
-			for videoFile := range work {
-				subbed := subtitledVideoFilename(videoFile)
-				if _, err := os.Stat(subbed); err == nil {
-					// Skip videos that have already been subtitled. To render
-					// subtitles again, delete the existing subtitled file.
-					wg.Done()
-					continue
-				}
-				err = RenderSubtitles(subbed, videoFile, fontSize)
-				if err != nil {
-					log.Print(err)
-					nerrorsLock.Lock()
-					nerrors += 1
-					nerrorsLock.Unlock()
-				}
-				wg.Done()
-			}
-		}()
+	f := func(i interface{}) error {
+		video := i.(string)
+		subbed := subtitledVideoFilename(video)
+		return RenderSubtitles(subbed, video, fontName, fontSize)
 	}
 
-	wg.Wait()
-	if nerrors > 0 {
-		return fmt.Errorf("errors rendering subtitles for %d/%d videos", nerrors, len(filenames))
+	// Convert []sting to []interface{}
+	jobs := make([]interface{}, len(filenames))
+	for i, f := range filenames {
+		jobs[i] = f
+	}
+
+	nerr := parallel(jobs, f, runtime.NumCPU())
+	if nerr > 0 {
+		return fmt.Errorf("render subtitles: %d/%d failed", nerr, len(filenames))
 	}
 	return nil
 }
 
-// Only one vine gets into the output: the rest are skipped due to duplicate
-// moov atoms.
-func ConcatVideosWithProtocol(videoFiles []string, outFile string) error {
-	cmd := exec.Command(
-		"ffmpeg",
-		"-y",
-		"-v", "warning",
-		"-i", "concat:" + strings.Join(videoFiles, "|"),
-		"-c", "copy",
-		outFile)
-	return runCmd(cmd)
-}
-
-
-// Lots of broken segments in the output.
-func ConcatVideosWithDemuxer(videoFiles []string, outFile string) error {
-	tmpFile, err := ioutil.TempFile("", "crkr_concat")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpFile.Name())
-	for _, f := range videoFiles {
-		_, err := fmt.Fprintf(tmpFile, "file '%s'\n", f)
-		if err != nil {
-			tmpFile.Close()
-			return err
-		}
-	}
-	err = tmpFile.Close()
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command(
-		"ffmpeg",
-		"-y",
-		"-v", "warning",
-		"-f", "concat",
-		// "safe" filenames are relative and can only consist of
-		// [a-zA-Z0-9_.-].
-		"-safe", "0",
-		"-i", tmpFile.Name(),
-		"-c", "copy",
-		outFile)
-	return runCmd(cmd)
-}
-
-var ConcatVideos = ConcatVideosLosslessly
-
-//ffmpeg -i input1.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate1.ts
-//ffmpeg -i input2.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate2.ts
-//ffmpeg -i "concat:intermediate1.ts|intermediate2.ts" -c copy -bsf:a aac_adtstoasc output.mp4
-func ConcatVideosLosslessly(videoFiles []string, outFile string) error {
+// ConcatVideos joins mp4 videos losslessly, like so:
+// ffmpeg -i input1.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate1.ts
+// ffmpeg -i input2.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate2.ts
+// ffmpeg -i "concat:intermediate1.ts|intermediate2.ts" -c copy -bsf:a aac_adtstoasc output.mp4
+func ConcatVideos(videoFiles []string, outFile string) error {
 	dir, err := ioutil.TempDir("", "crkr")
 	if err != nil {
 		return err
@@ -376,16 +403,16 @@ func formatExitError(cmd *exec.Cmd, err *exec.ExitError) error {
 
 // RenderSubtitles overlays subtitles in ${videoFile%.mp4}.srt on file to
 // produce ${videoFile%.mp4}.sub.mp4
-func RenderSubtitles(outFile string, videoFile string, fontSize int) error {
+func RenderSubtitles(outFile, videoFile, fontName string, fontSize int) error {
 	basename := strings.TrimSuffix(videoFile, ".mp4")
 	subtitles := basename + ".srt"
 	subtitledVideo := subtitledVideoFilename(videoFile)
 	style := fmt.Sprintf(
-		"subtitles=f=%s:force_style='FontName=Arial,Fontsize=%d'",
-		subtitles, fontSize)
+		"subtitles=f=%s:force_style='FontName=%s,Fontsize=%d'",
+		subtitles, fontName, fontSize)
 	cmd := exec.Command(
 		"ffmpeg",
-		"-n", // Don't overwrite existing output files.
+		"-y",
 		"-v", "warning",
 		"-i", videoFile,
 		"-vf", style,
@@ -548,7 +575,7 @@ func timelinePageVines(url string) (vines []Vine, more bool, err error) {
 			Title:    tv.Description,
 			Uploader: tv.Username,
 			URL:      tv.VideoURL,
-			UUID:     permalinkToUUID(tv.PermalinkURL),
+			UUID:     vineURLToUUID(tv.PermalinkURL),
 			Created:  created,
 			Venue:    tv.VenueName,
 		})
@@ -582,9 +609,8 @@ func deserialize(url string, d interface{}) error {
 	return nil
 }
 
-func permalinkToUUID(permalink string) string {
-	re := regexp.MustCompile(`https://vine\.co/v/([a-zA-Z0-9]+)$`)
-	m := re.FindStringSubmatch(permalink)
+func vineURLToUUID(url string) string {
+	m := vineURLRE.FindStringSubmatch(url)
 	if len(m) == 0 {
 		uuidMutex.Lock()
 		defer uuidMutex.Unlock()
@@ -600,6 +626,11 @@ func subtitledVideoFilename(videoFile string) string {
 func subtitlesFilename(videoFile string) string {
 	return strings.TrimSuffix(videoFile, ".mp4") + ".srt"
 }
+
+func metadataFilename(videoFile string) string {
+	return strings.TrimSuffix(videoFile, ".mp4") + ".json"
+}
+
 
 type jsonVineEnvelope struct {
 	Success bool
@@ -648,208 +679,6 @@ type jsonUser struct {
 	UserID int64
 }
 
-// concatSubtitles concatenates any subtitle files corresponding to videoFiles
-// (having the same name but different extensions), adjusting intervals as
-// necessary.
-func ConcatSubtitles(w io.Writer, playlist []plItem) error {
-	start := time.Duration(0)
-	i := 0
-
-	for _, e := range playlist {
-		dur, err := shortestStreamDuration(e.Filename)
-		if err != nil {
-			return err
-		}
-
-		if e.NoSubtitles {
-			start += dur
-			continue
-		}
-
-		subs, err := ReadSubRipFile(e.Filename)
-		if err != nil {
-			return err
-		}
-		for _, sub := range subs {
-			i++
-			sub.index = i
-			sub.start += start
-			sub.stop += start
-			_, err := fmt.Fprint(w, sub.String())
-			if err != nil {
-				return err
-			}
-		}
-		start += dur
-	}
-	return nil
-}
-
-type Subtitle struct {
-	index       int
-	start, stop time.Duration
-	msg         string
-}
-
-func (s Subtitle) String() string {
-	return fmt.Sprintf("%d\n%s --> %s\n%s\n", s.index, formatDuration(s.start), formatDuration(s.stop), s.msg)
-}
-
-func formatDuration(d time.Duration) string {
-	return fmt.Sprintf("%02d:%02d:%02d,%03d", 
-			d / time.Hour,
-			d / time.Minute % 60,
-			d / time.Second % 60,
-			d / time.Millisecond % 1000)
-}
-
-func ReadSubRipFile(videoFile string) ([]Subtitle, error) {
-	f, err := os.Open(subtitlesFilename(videoFile))
-	defer f.Close()
-	if os.IsNotExist(err) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	subs, err := parseAllSubRip(f)
-	if err != nil {
-		return nil, err
-	}
-	return subs, nil
-}
-
-func parseAllSubRip(r io.Reader) ([]Subtitle, error) {
-	subs := []Subtitle{}
-	s := bufio.NewScanner(r)
-	for {
-		for {
-			if !s.Scan() {
-				return subs, s.Err()
-			}
-			if s.Text() != "" {
-				break
-			}
-		}
-		sub, err := parseSubRip(s)
-		if err != nil {
-			return nil, err
-		}
-		subs = append(subs, sub)
-	}
-	return subs, s.Err()
-}
-
-func parseSubRip(s *bufio.Scanner) (Subtitle, error) {
-	integerLine := regexp.MustCompile(`^(\d+)$`)
-	intervalLine := regexp.MustCompile(`^(\d\d:\d\d:\d\d,\d\d\d) --> (\d\d:\d\d:\d\d,\d\d\d)$`)
-
-	// index
-	sub := Subtitle{}
-	m := integerLine.FindStringSubmatch(s.Text())
-	if len(m) == 0 {
-		return sub, fmt.Errorf("parse SubRip: expected index, got %q", s.Text())
-	}
-	var err error
-	sub.index, err = strconv.Atoi(m[1])
-	if err != nil {
-		return sub, err
-	}
-
-	// interval
-	if !s.Scan() {
-		return sub, fmt.Errorf("parse SubRip: expected interval, got eof")
-	}
-	m = intervalLine.FindStringSubmatch(s.Text())
-	if len(m) == 0 {
-		return sub, fmt.Errorf("parse SubRip: expected interval, got %q", s.Text())
-	}
-	sub.start, err = parseSubRipDuration(m[1])
-	if err != nil {
-		return sub, fmt.Errorf("parse SubRip: %s", err)
-	}
-	sub.stop, err = parseSubRipDuration(m[2])
-	if err != nil {
-		return sub, fmt.Errorf("parse SubRip: %s", err)
-	}
-
-	// msg
-	b := &bytes.Buffer{}
-	for s.Scan() && s.Text() != "" {
-		b.WriteString(s.Text())
-		b.WriteString("\n")
-	}
-	sub.msg = b.String()
-	return sub, nil
-}
-
-func parseSubRipDuration(subRip string) (time.Duration, error) {
-	s := subRip
-	s = strings.Replace(s, ":", "h", 1)
-	s = strings.Replace(s, ":", "m", 1)
-	s = strings.Replace(s, ",", "s", 1)
-	s += "ms"
-	dur, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, fmt.Errorf("malformed SubRip duration: %q", subRip)
-	}
-	return dur, nil
-}
-
-func shortestStreamDuration(filename string) (time.Duration, error) {
-	streamDurationRE := regexp.MustCompile(`streams.stream.\d+.duration="([^"]+)"`)
-	cmd := exec.Command(
-		"ffprobe",
-		"-v", "error",
-		"-show_streams",
-		"-show_entries", "stream=duration:stream_tags=:disposition=",
-		"-of", "flat",
-		filename)
-	stdout, err := cmd.Output()
-	if err != nil {
-		return 0, err
-	}
-	shortest := 0.0
-	for i, m := range streamDurationRE.FindAllSubmatch(stdout, -1) {
-		dur, err := strconv.ParseFloat(string(m[1]), 64)
-		if err != nil {
-			return 0, err
-		}
-		if i == 0 {
-			shortest = dur
-		}
-		// TODO: > -> <
-		if dur > shortest {
-			shortest = dur
-		}
-	}
-	// Concatenating videos results in a small change in their
-	// duration. Subtitles become noticeably out-of-sync after a few dozen
-	// vines unless this is accounted for. The delay varies
-	shortest += 0.038
-	return time.Duration(shortest * 1e6) * time.Microsecond, nil
-}
-
-func containerDuration(filename string) (time.Duration, error) {
-	cmd := exec.Command(
-		"ffprobe",
-		"-v", "error",
-		"-show_entries", "format=duration",
-		"-of", "default=noprint_wrappers=1:nokey=1",
-		filename)
-	if Verbose {
-		log.Println("run:", strings.Join(cmd.Args, " "))
-	}
-	out, err := cmd.Output()
-	if err != nil {
-		return 0, formatExitError(cmd, err.(*exec.ExitError))
-	}
-	seconds, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
-	if err != nil {
-		return 0, err
-	}
-	seconds += 0.04
-	return time.Duration(seconds * 1e6) * time.Microsecond, nil
-}
 
 // HardSubM3U takes an existing M3U playlist as r and replaces videos with
 // their hardsub versions, if they exist and the entry isn't preceded by a

@@ -179,7 +179,7 @@ func TestVineSubtitles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "1\n00:00:00,000 --> 00:00:02,000\nIdiots Assemble!"
+	want := "1\n00:00:00,000 --> 00:00:02,000\nIdiots Assemble!\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -204,6 +204,7 @@ bnmHnwVILKD.mp4`
 		t.Errorf("want %v, got %v", want, got)
 	}
 }
+
 
 func TestRenderAllSubtitles(t *testing.T) {
 	if testing.Short() {
@@ -232,7 +233,7 @@ func TestRenderAllSubtitles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = RenderAllSubtitles([]string{videoFile}, 8)
+	err = RenderAllSubtitles([]string{videoFile}, "Arial", 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,6 +280,7 @@ func videoHash(filepath string) (string, error) {
 	return buf.String(), err
 }
 
+
 func TestConcatVideos(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long test")
@@ -314,66 +316,6 @@ func filesize(t *testing.T, filename string) int64 {
 	return info.Size()
 }
 
-func remove(t *testing.T, files ...string) {
-	for _, f := range files {
-		err := os.RemoveAll(f)
-		if err != nil {
-			t.Error(err)
-		}
-	}
-}
-
-func TestConcatSubtitles(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping long test")
-	}
-	subTemplate := "1\n00:00:00,000 --> 00:00:02,000\n%s line1\nline2\n"
-	dir, err := ioutil.TempDir("", "crkr_concat")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer remove(t, dir)
-	videos := []plItem{}
-	for i := 0; i < 4; i++ {
-		video := filepath.Join(dir, fmt.Sprintf("v%d.mp4", i))
-		writeBlankVideo(t, video)
-		videos = append(videos, plItem{video, false})
-	}
-	writeFile(t, filepath.Join(dir, "v1.srt"), fmt.Sprintf(subTemplate, "v1"))
-	writeFile(t, filepath.Join(dir, "v3.srt"), fmt.Sprintf(subTemplate, "v3"))
-	b := &bytes.Buffer{}
-	err = ConcatSubtitles(b, videos)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `1
-00:00:06,000 --> 00:00:08,000
-v1 line1
-line2
-
-2
-00:00:18,000 --> 00:00:20,000
-v3 line1
-line2
-
-`
-	got := b.String()
-	if want != got {
-		t.Errorf("got: %q, want: %q", got, want)
-	}
-}
-
-func writeFile(t *testing.T, file string, contents string) {
-	f, err := os.Create(file)
-	defer f.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = fmt.Fprint(f, contents)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestHardSubM3U(t *testing.T) {
 	dir, err := ioutil.TempDir("", "crkr_whsm")
@@ -418,5 +360,68 @@ func TestHardSubM3U(t *testing.T) {
 	got := b.String()
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func writeFile(t *testing.T, file string, contents string) {
+	f, err := os.Create(file)
+	defer f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = fmt.Fprint(f, contents)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+
+func TestMetadataCodec(t *testing.T) {
+	dir, err := ioutil.TempDir("", "crkr_metacodec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Chdir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(origDir)
+
+	want := []Vine{
+		{
+			Title:    "Chicken.",
+			Uploader: "Jack",
+			URL:      "http://v.cdn.vine.co/v/videos/7508FF74-000E-48F3-9E5E-D7218D5F8FFB-7580-000002B248D861FF_1.1.mp4?versionId=6LYxpZTqmX86aZ9uq5b8e.PqOWi45U9T",
+			UUID:     "b9KOOWX7HUx",
+			Venue:    "The Fremont Diner",
+			Created:  time.Date(2013, 5, 19, 21, 12, 31, 0, time.UTC),
+		},
+	}
+	err = WriteAllVineMetadata(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	videoFiles := make([]string, len(want))
+	for i, v := range want {
+		videoFiles[i] = v.VideoFilename()
+	}
+	playlist := filepath.Join(dir, "pl.m3u")
+	err = ioutil.WriteFile(playlist, []byte(strings.Join(videoFiles, "\n")), 0666)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadMetadataForPlaylist(playlist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("want %v, got %v", want, got)
 	}
 }
