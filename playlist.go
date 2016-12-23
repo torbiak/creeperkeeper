@@ -7,32 +7,20 @@ import (
 	"io"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 )
 
-var noSubsRE = regexp.MustCompile("^# *nosubtitles")
-
-type plItem struct {
-	Filename    string
-	NoSubtitles bool
-}
-
-func ReadM3U(r io.Reader) (playlist []plItem, err error) {
+// ReadM3U returns a list of filenames from an M3U playlist.
+func ReadM3U(r io.Reader) (files []string, err error) {
 	s := bufio.NewScanner(r)
-	noSub := false
 	for s.Scan() {
 		if strings.HasPrefix(s.Text(), "#") {
-			if !noSub && noSubsRE.MatchString(s.Text()) {
-				noSub = true
-			}
 			continue
 		}
 		filename := strings.TrimRight(s.Text(), "\r\n")
-		playlist = append(playlist, plItem{filename, noSub})
-		noSub = false
+		files = append(files, filename)
 	}
-	return playlist, s.Err()
+	return files, s.Err()
 }
 
 func WriteM3U(w io.Writer, vines []Vine) error {
@@ -50,37 +38,31 @@ func WriteM3U(w io.Writer, vines []Vine) error {
 }
 
 // HardSubM3U takes an existing M3U playlist as r and replaces videos with
-// their hardsub versions, if they exist and the entry isn't preceded by a
-// nosubtitles annotation.
+// their hardsub versions, if they exist.
 func HardSubM3U(w io.Writer, r io.Reader) error {
 	s := bufio.NewScanner(r)
-	noSubs := false
 	b := &bytes.Buffer{}
 	for s.Scan() {
-		if noSubsRE.MatchString(s.Text()) {
-			noSubs = true
-		}
 		if strings.HasPrefix(s.Text(), "#") {
 			fmt.Fprintln(b, s.Text())
 			continue
 		}
-		subbed := subtitledVideoFilename(s.Text())
-		if noSubs || !fileExists(subbed) {
-			fmt.Fprintln(b, s.Text())
-		} else {
+		subbed := SubtitledVideoFilename(s.Text())
+		if FileExists(subbed) {
 			fmt.Fprintln(b, subbed)
+		} else {
+			fmt.Fprintln(b, s.Text())
 		}
 		_, err := fmt.Fprint(w, b.String())
 		if err != nil {
 			return err
 		}
-		noSubs = false
 		b.Reset()
 	}
 	return nil
 }
 
-func fileExists(name string) bool {
+func FileExists(name string) bool {
 	_, err := os.Stat(name)
 	if os.IsNotExist(err) {
 		return false
@@ -97,15 +79,15 @@ func ReadMetadataForPlaylist(playlist string) ([]Vine, error) {
 		return nil, err
 	}
 	defer f.Close()
-	plItems, err := ReadM3U(f)
+	videoFiles, err := ReadM3U(f)
 	if err != nil {
 		return nil, err
 	}
-	videoFiles := make([]string, len(plItems))
-	for i, item := range plItems {
-		videoFiles[i] = metadataFilename(item.Filename)
+	metaFiles := make([]string, len(videoFiles))
+	for i, file := range videoFiles {
+		metaFiles[i] = metadataFilename(file)
 	}
-	return ReadAllVineMetadata(videoFiles)
+	return ReadAllVineMetadata(metaFiles)
 }
 
 func metadataFilename(videoFile string) string {

@@ -148,7 +148,8 @@ func TestWriteSubtitles(t *testing.T) {
 			UUID:     "bnmHnwVILKD",
 		},
 	}
-	err := WriteSubtitles(vines, 1*time.Second, subTemplate)
+	plainEmoji := true
+	err := WriteSubtitles(vines, 1*time.Second, subTemplate, plainEmoji)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,10 +185,7 @@ Mz2Wzi73VnI.mp4
 #nosubtitles
 #EXTINF:-1,Idiots Assemble!
 bnmHnwVILKD.mp4`
-	want := []plItem{
-		{"Mz2Wzi73VnI.mp4", false},
-		{"bnmHnwVILKD.mp4", true},
-	}
+	want := []string{"Mz2Wzi73VnI.mp4", "bnmHnwVILKD.mp4"}
 	got, err := ReadM3U(strings.NewReader(playlist))
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +209,7 @@ func TestRenderAllSubtitles(t *testing.T) {
 	subbedFile := filepath.Join(dir, basename+".sub.mp4")
 	subFile := filepath.Join(dir, basename+".srt")
 
-	writeBlankVideo(t, videoFile)
+	writeBlankVideo(t, videoFile, 720, 720)
 
 	// Write subtitles to a file.
 	subtitles := "1\n00:00:00,000 --> 00:00:02,000\nIdiots Assemble!"
@@ -243,14 +241,14 @@ func TestRenderAllSubtitles(t *testing.T) {
 	}
 }
 
-func writeBlankVideo(t *testing.T, filename string) {
+func writeBlankVideo(t *testing.T, filename string, width, height int) {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-y",
 		"-loglevel", "warning",
 		"-t", "6",
 		"-f", "lavfi",
-		"-i", "color=BLACK:720x720",
+		"-i", fmt.Sprintf("color=BLACK:%dx%d", width, height),
 		filename)
 	_, err := cmd.Output()
 	if err != nil {
@@ -286,7 +284,7 @@ func TestConcatVideos(t *testing.T) {
 		filepath.Join(dir, "blank2.mp4"),
 	}
 	for _, f := range files {
-		writeBlankVideo(t, f)
+		writeBlankVideo(t, f, 720, 720)
 	}
 	outputVideo := filepath.Join(dir, "blank3.mp4")
 	err = ConcatVideos(files, outputVideo)
@@ -317,7 +315,7 @@ func TestHardSubM3U(t *testing.T) {
 		videos = append(videos, filepath.Join(dir, name+".mp4"))
 	}
 	for _, f := range videos[:2] {
-		writeFile(t, subtitledVideoFilename(f), "")
+		writeFile(t, SubtitledVideoFilename(f), "")
 	}
 	playlist := fmt.Sprintf(`#EXTM3U
 #EXTINF:-1,Guys be like #superbowl #sexism #relatable
@@ -330,7 +328,7 @@ func TestHardSubM3U(t *testing.T) {
 `, videos[0], videos[1], videos[2])
 	subbed := []string{}
 	for _, f := range videos {
-		subbed = append(subbed, subtitledVideoFilename(f))
+		subbed = append(subbed, SubtitledVideoFilename(f))
 	}
 	b := &bytes.Buffer{}
 	err = HardSubM3U(b, strings.NewReader(playlist))
@@ -411,5 +409,88 @@ func TestMetadataCodec(t *testing.T) {
 	}
 	if !reflect.DeepEqual(want, got) {
 		t.Fatalf("want %v, got %v", want, got)
+	}
+}
+
+func TestVideoDimensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long test")
+	}
+	dir, err := ioutil.TempDir("", "crkr_tvd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	video := filepath.Join(dir, "rah.mp4")
+	wantW := 720
+	wantH := 720
+	writeBlankVideo(t, video, wantW, wantH)
+	gotW, gotH, err := videoDimensions(video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wantW != gotW || wantH != gotH {
+		t.Fatalf("got %dx%d, want 720x720", gotW, gotH, wantW, gotH)
+	}
+}
+
+func TestScale(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long test")
+	}
+	dir, err := ioutil.TempDir("", "crkr_scale")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	video := filepath.Join(dir, "orig.mp4")
+	writeBlankVideo(t, video, 480, 480)
+
+	err = scale(video)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantW := 720
+	wantH := 720
+	gotW, gotH, err := videoDimensions(video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wantW != gotW || wantH != gotH {
+		t.Fatalf("got %dx%d, want 720x720", gotW, gotH, wantW, gotH)
+	}
+}
+
+func TestScaleAll(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long test")
+	}
+	dir, err := ioutil.TempDir("", "crkr_scale")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	a := filepath.Join(dir, "a.mp4")
+	b := filepath.Join(dir, "b.mp4")
+	writeBlankVideo(t, a, 480, 480)
+	writeBlankVideo(t, b, 720, 720)
+	videos := []string{a, b}
+
+	err = ScaleAll(videos)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantW := 720
+	wantH := 720
+	for _, video := range videos {
+		gotW, gotH, err := videoDimensions(video)
+		if err != nil {
+			t.Error(err)
+		}
+		if wantW != gotW || wantH != gotH {
+			t.Error("%s: got %dx%d, want 720x720", video, gotW, gotH, wantW, gotH)
+		}
 	}
 }

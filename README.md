@@ -57,12 +57,12 @@ Render subtitles:
     # Produces <UUID>.sub.mp4... miel.sub.m3u
     crkr hardsub miel.m3u miel.sub.m3u
 
-To skip rendering subtitles for a playlist entry include a `# nosubtitles` comment above it; this can be useful for repeating an entry but only displaying subtitles for the first instance.    crkr hardsub miel.m3u miel.sub.m3u
+To concatenate the Vines without recoding the video and decreasing quality, all the videos must be the same size. Most Vines are 720x720, but some are only available at 480x480. The `hardsub` and `concat` commands automatically scale videos as necessary before performing their primary functions.
 
-Assuming all the videos in a playlist are mp4 they can be losslessly concatenated (ie they will not be transcoded/re-encoded):
+Finally, join them all together:
 
     crkr concat miel.m3u miel.mp4
 
 ## Emoji
 
-Emoji are heavily used in many Vine descriptions but they are far from being universally supported. If burnt subtitle emoji are all displayed as replacement characters (commonly represented by an empty rectangle glyph), fontconfig probably can't find an installed font containing them. Free emoji fonts with permissive licenses are available, such as Google's [Noto](https://www.google.com/get/noto/) family. If the given font doesn't contain emoji glyphs fontconfig will take glyphs from a font that does---letters might be from Arial but the emoji could be from Segoe UI, for example. If unexpected glyphs are being displayed after emoji, try using the `subtitles` command's `-plainemoji` option to remove variation selectors, which are mainly used to change the color of the preceding emoji and are relatively new and unsupported.
+Emoji are heavily used in many Vine descriptions but they are far from being universally supported. If burnt subtitle emoji are all displayed as replacement characters (commonly represented by an empty rectangle glyph), fontconfig probably can't find an installed font containing them. Free emoji fonts with permissive licenses are available, such as Google's [Noto](https://www.google.com/get/noto/) family. If the given font doesn't contain emoji glyphs fontconfig will take glyphs from a font that does---letters might be from Arial but the emoji could be from Segoe UI, for example. If unexpected glyphs are being displayed after emoji, try using the `subtitles` command's `-plainemoji` option to remove variation selectors, which are mainly used to change the color of the preceding emoji and are relatively new (2014) and unsupported.

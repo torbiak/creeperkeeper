@@ -48,7 +48,7 @@ func RenderAllSubtitles(filenames []string, fontName string, fontSize int) error
 
 	f := func(i interface{}) error {
 		video := i.(string)
-		subbed := subtitledVideoFilename(video)
+		subbed := SubtitledVideoFilename(video)
 		return RenderSubtitles(subbed, video, fontName, fontSize)
 	}
 
@@ -70,7 +70,7 @@ func RenderAllSubtitles(filenames []string, fontName string, fontSize int) error
 func RenderSubtitles(outFile, videoFile, fontName string, fontSize int) error {
 	basename := strings.TrimSuffix(videoFile, ".mp4")
 	subtitles := basename + ".srt"
-	subtitledVideo := subtitledVideoFilename(videoFile)
+	subtitledVideo := SubtitledVideoFilename(videoFile)
 	style := fmt.Sprintf(
 		"subtitles=f=%s:force_style='FontName=%s,Fontsize=%d'",
 		subtitles, fontName, fontSize)
@@ -81,7 +81,8 @@ func RenderSubtitles(outFile, videoFile, fontName string, fontSize int) error {
 		"-i", videoFile,
 		"-vf", style,
 		subtitledVideo)
-	return runCmd(cmd)
+	_, err := runCmd(cmd)
+	return err
 }
 
 func removeEmojiVariationSelectors(s string) string {
@@ -97,6 +98,6 @@ func removeEmojiVariationSelectors(s string) string {
 	return b.String()
 }
 
-func subtitledVideoFilename(videoFile string) string {
+func SubtitledVideoFilename(videoFile string) string {
 	return strings.TrimSuffix(videoFile, ".mp4") + ".sub.mp4"
 }

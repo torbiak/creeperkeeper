@@ -37,7 +37,8 @@ func ConcatVideos(videoFiles []string, outFile string) error {
 		"-c", "copy",
 		"-bsf:a", "aac_adtstoasc",
 		outFile)
-	return runCmd(cmd)
+	_, err = runCmd(cmd)
+	return err
 }
 
 func mp4ToTransportStream(inFile, outFile string) error {
@@ -51,5 +52,6 @@ func mp4ToTransportStream(inFile, outFile string) error {
 		"-shortest",
 		"-f", "mpegts",
 		outFile)
-	return runCmd(cmd)
+	_, err := runCmd(cmd)
+	return err
 }

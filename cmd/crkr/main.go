@@ -21,12 +21,13 @@ type Cmd interface {
 
 type GetCmd struct {
 	flagSet  *flag.FlagSet
+	force    bool
 	url      string
 	playlist string
 }
 
 func (c *GetCmd) PrintUsage(w io.Writer) {
-	usage := `get <url> <playlist> 
+	usage := `get <url> <m3u_out>
   Download vines and metadata.`
 	printCmdUsage(w, usage, c.flags())
 }
@@ -37,6 +38,7 @@ func (c *GetCmd) flags() *flag.FlagSet {
 	}
 	c.flagSet = flag.NewFlagSet("get", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
+	c.flagSet.BoolVar(&c.force, "force", false, "overwrite video files")
 	return c.flagSet
 }
 
@@ -58,7 +60,19 @@ func (c *GetCmd) Run(args []string) {
 		log.Printf("write metadata: %s", err)
 	}
 
-	if err := crkr.DownloadVines(vines); err != nil {
+	download := []crkr.Vine{}
+	if c.force {
+		download = vines
+	} else {
+		for _, v := range vines {
+			if crkr.FileExists(v.VideoFilename()) {
+				continue
+			}
+			download = append(download, v)
+		}
+	}
+
+	if err := crkr.DownloadVines(download); err != nil {
 		nerrors++
 		log.Printf("download vines: %s", err)
 	}
@@ -103,6 +117,7 @@ func writeM3U(m3uFile string, vines []crkr.Vine) (err error) {
 	return nil
 }
 
+
 type SubtitlesCmd struct {
 	flagSet    *flag.FlagSet
 	plainEmoji bool
@@ -124,7 +139,7 @@ func (c *SubtitlesCmd) flags() *flag.FlagSet {
 }
 
 func (c *SubtitlesCmd) PrintUsage(w io.Writer) {
-	usage := `subtitles [<opts>] <playlist> 
+	usage := `subtitles [<opts>] <m3u>
   Generate SubRip subtitles.`
 	printCmdUsage(w, usage, c.flags())
 }
@@ -168,6 +183,7 @@ type HardSubCmd struct {
 	flagSet       *flag.FlagSet
 	font          string
 	fontSize      int
+	force         bool
 	m3uIn, m3uOut string
 }
 
@@ -179,11 +195,12 @@ func (c *HardSubCmd) flags() *flag.FlagSet {
 	c.flagSet.SetOutput(ioutil.Discard)
 	c.flagSet.IntVar(&c.fontSize, "fontsize", 12, "font `size`")
 	c.flagSet.StringVar(&c.font, "font", "Arial", "font `name`")
+	c.flagSet.BoolVar(&c.force, "force", false, "overwrite subtitled videos")
 	return c.flagSet
 }
 
 func (c *HardSubCmd) PrintUsage(w io.Writer) {
-	usage := `hardsub [<opts>]  <playlist_in> <playlist_out>
+	usage := `hardsub [<opts>]  <m3u_in> <m3u_out>
   Render subtitles and create a new playlist of subtitled videos.`
 	printCmdUsage(w, usage, c.flags())
 }
@@ -199,18 +216,29 @@ func (c *HardSubCmd) Run(args []string) {
 		log.Fatalf("open playlist: %s", err)
 	}
 	defer inFile.Close()
-	plItems, err := crkr.ReadM3U(inFile)
+	files, err := crkr.ReadM3U(inFile)
 	if err != nil {
-		log.Fatalf("read playlist: %s", err)
+		log.Fatal(err)
 	}
-	filenames := []string{}
-	for _, item := range plItems {
-		if item.NoSubtitles {
-			continue
+
+	err = crkr.ScaleAll(files)
+	if err != nil {
+		log.Fatalf("scale: %s", err)
+	}
+
+	render := []string{}
+	if c.force {
+		render = files
+	} else {
+		for _, f := range files {
+			if crkr.FileExists(crkr.SubtitledVideoFilename(f)) {
+				continue
+			}
+			render = append(render, f)
 		}
-		filenames = append(filenames, item.Filename)
 	}
-	err = crkr.RenderAllSubtitles(filenames, c.font, c.fontSize)
+
+	err = crkr.RenderAllSubtitles(render, c.font, c.fontSize)
 	if err != nil {
 		log.Println(err)
 	}
@@ -264,7 +292,7 @@ func (c *ConcatCmd) flags() *flag.FlagSet {
 }
 
 func (c *ConcatCmd) PrintUsage(w io.Writer) {
-	usage := `concat <playlist> <video>
+	usage := `concat <m3u> <video>
   Losslessly concatenate a playlist of MP4 videos into one video.`
 	printCmdUsage(w, usage, c.flags())
 
@@ -281,17 +309,17 @@ func (c *ConcatCmd) Run(args []string) {
 		log.Fatalf("open playlist: %s", err)
 	}
 	defer plFile.Close()
-	plItems, err := crkr.ReadM3U(plFile)
+	files, err := crkr.ReadM3U(plFile)
 	if err != nil {
 		log.Fatalf("read playlist: %s", err)
 	}
-	files := []string{}
-	for _, item := range plItems {
-		files = append(files, item.Filename)
+	err = crkr.ScaleAll(files)
+	if err != nil {
+		log.Fatalf("scale: %s", err)
 	}
 	err = crkr.ConcatVideos(files, c.video)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err)
 	}
 }
 
@@ -308,6 +336,7 @@ func (c *ConcatCmd) parseArgs(args []string) error {
 	c.video = flags.Arg(1)
 	return nil
 }
+
 
 func printCmdUsage(w io.Writer, cmdUsage string, flags *flag.FlagSet) {
 	fmt.Fprintln(w, cmdUsage)

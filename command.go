@@ -10,19 +10,19 @@ import (
 	"strings"
 )
 
-func runCmd(cmd *exec.Cmd) error {
+func runCmd(cmd *exec.Cmd) (stdout []byte, err error) {
 	cmdLine := strings.Join(cmd.Args, " ")
 	if Verbose {
 		log.Println("run:", cmdLine)
 	}
-	b := &bytes.Buffer{}
-	cmd.Stderr = b
-	err := cmd.Run()
-	if err == nil && len(b.String()) > 0 {
-		log.Print("exit status 0: ", cmdLine, "\nstderr:\n", b.String())
+	stderr := &bytes.Buffer{}
+	cmd.Stderr = stderr
+	stdout, err = cmd.Output()
+	if err == nil && len(stderr.String()) > 0 {
+		log.Print("exit status 0: ", cmdLine, "\nstderr:\n", stderr.String())
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %s\nstderr:\n%s", err.Error(), cmdLine, b.String())
+		return stdout, fmt.Errorf("%s: %s\nstderr:\n%s", err.Error(), cmdLine, stderr.String())
 	}
-	return nil
+	return stdout, nil
 }
