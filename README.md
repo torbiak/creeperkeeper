@@ -27,14 +27,14 @@ Download the [Creeper Keeper binary](TODO).
 
 ## Description
 
-Use Creeper Keeper to download Vines and generate subtitles. URLs for single Vines or a user's posts or likes are supported. Vines, metadata, and subtitle files are named for the Vine's short ID.
+An example workflow:
+
+Use the get command to download Vines. URLs for single Vines or a user's posts or likes are supported. Vines, metadata, and subtitle files are named for the Vine's short ID.
 
     # Produces <UUID>.mp4... <UUID>.json... miel.m3u
     crkr get https://vine.co/u/973499529959968768 miel.m3u
-    # Produces <UUID>.srt...
-    crkr subtitles miel.m3u
 
-The subformat option for the get command specifies a Go text template to use for generating subtitles. Available fields are `Title`, `Uploader`, `Venue`, and `Created` (which is a `time.Time`). See the docs for the [text/template](https://golang.org/pkg/text/template/) and [time](https://golang.org/pkg/time/) packages for details.
+Generate subtitles. The subformat option for the subtitles command specifies a Go text template to use for generating subtitles. Available fields are `Title`, `Uploader`, `Venue`, and `Created` (which is a `time.Time`). See the docs for the [text/template](https://golang.org/pkg/text/template/) and [time](https://golang.org/pkg/time/) packages for details.
 
 A verbose example:
 
@@ -44,11 +44,16 @@ When compiling a creator's Vines it might be nice to only show the uploader if t
 
     {{if ne .Uploader "mielmonster"}}[{{.Uploader}}] {{end}}{{.Title}}
 
-If desired, modify the M3U playlist using a video player or text editing tools. Many video players will automatically display SubRip subtitles contained in a file having the same name as the playing video file, apart from the file extension.
+To use the default:
+
+    # Produces <UUID>.srt...
+    crkr subtitles miel.m3u
+
+If desired, modify the M3U playlist using a video player or text editing tools. Many video players will automatically display SubRip subtitles contained in a file having the same name as the playing video file, apart from the file extension. The subtitles can also be easily modified.
 
 Render subtitles:
 
-    # This  take a while.
+    # This can take a while.
     # Produces <UUID>.sub.mp4... miel.sub.m3u
     crkr hardsub miel.m3u miel.sub.m3u
 
