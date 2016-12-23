@@ -21,7 +21,7 @@ Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render
 
 ## Installation
 
-Install [ffmpeg](https://ffmpeg.org/download.html) and ensure the directory containing the `ffmpeg` binary is [added to the PATH environment variable](http://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access/). `ffmpeg` must be in a directory in `PATH` for Creeper Keeper to be able to call it.
+Install [ffmpeg](https://ffmpeg.org/download.html) and ensure the directory containing the `ffmpeg` and `ffprobe` binaries is [added to the PATH environment variable](http://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access/). `ffmpeg` and `ffprobe` must be in a directory in `PATH` for Creeper Keeper to be able to call it.
 
 Download the [Creeper Keeper binary](TODO).
 
