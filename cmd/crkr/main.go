@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+var version string
 var nargsErr = fmt.Errorf("wrong number of arguments")
 
 type Cmd interface {
@@ -345,6 +346,7 @@ func printCmdUsage(w io.Writer, cmdUsage string, flags *flag.FlagSet) {
 }
 
 func printUsage(w io.Writer, globalFlags *flag.FlagSet, commands map[string]Cmd) {
+	fmt.Fprintf(w, "crkr version %s\n", version)
 	fmt.Fprintln(w, "usage: crkr <global_opts> <command> <opts> <args>")
 	fmt.Fprintln(w, "\nglobal options:\n")
 	globalFlags.SetOutput(w)
@@ -378,6 +380,7 @@ func main() {
 	globalFlags.SetOutput(ioutil.Discard)
 	helpFlag := globalFlags.Bool("h", false, "show help")
 	verboseFlag := globalFlags.Bool("v", false, "increase log verbosity")
+	versionFlag := globalFlags.Bool("version", false, "display version")
 	err := globalFlags.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -387,6 +390,10 @@ func main() {
 
 	if *helpFlag {
 		printUsage(os.Stdout, globalFlags, commands)
+		os.Exit(0)
+	}
+	if *versionFlag {
+		fmt.Println(version)
 		os.Exit(0)
 	}
 	crkr.Verbose = *verboseFlag
