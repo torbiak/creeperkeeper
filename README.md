@@ -21,9 +21,21 @@ Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render
 
 ## Installation
 
-Install [ffmpeg](https://ffmpeg.org/download.html) and ensure the directory containing the `ffmpeg` and `ffprobe` binaries is [added to the PATH environment variable](http://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access/). `ffmpeg` and `ffprobe` must be in a directory in `PATH` for Creeper Keeper to be able to call it.
+Download a Creeper Keeper binary from the [releases page](https://github.com/torbiak/creeperkeeper/releases) and [add the directory it's in to the `PATH` environment variable](https://www.java.com/en/download/help/path.xml).
 
-Download a Creeper Keeper binary from the [releases page](https://github.com/torbiak/creeperkeeper/releases) and, for convenience, ensure the directory it's in is also in `PATH`.
+Install ffmpeg with libass support. `ffmpeg` and `ffprobe` must be in a directory in `PATH` for Creeper Keeper to be able to call them.
+
+### Windows
+
+Install ffmpeg from [zeranoe](https://ffmpeg.org/download.html#build-windows).
+
+### OSX
+
+[Install ffmpeg using homebrew](https://trac.ffmpeg.org/wiki/CompilationGuide/MacOSX#ffmpegthroughHomebrew).
+
+### Linux
+
+If the version of ffmpeg supplied by your package manager doesn't have libass support, compile from source and give `configure` the `--with-libass` flag.
 
 ## Description
 
