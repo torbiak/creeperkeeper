@@ -79,3 +79,7 @@ Finally, join them all together:
 ## Emoji
 
 Emoji are heavily used in many Vine descriptions but they are far from being universally supported. If burnt subtitle emoji are all displayed as replacement characters (commonly represented by an empty rectangle glyph), fontconfig probably can't find an installed font containing them. Free emoji fonts with permissive licenses are available, such as Google's [Noto](https://www.google.com/get/noto/) family. If the given font doesn't contain emoji glyphs fontconfig will take glyphs from a font that does---letters might be from Arial but the emoji could be from Segoe UI, for example. If unexpected glyphs are being displayed after emoji, try using the `subtitles` command's `-plainemoji` option to remove variation selectors, which are mainly used to change the color of the preceding emoji and are relatively new (2014) and unsupported. If unwanted glyphs are still appearing, try replacing the emoji with simpler versions manually.
+
+## Bugs and Limitations
+
+* On Windows, due to a limitation of how filepaths are given to ffmpeg's subtitles filter, all filepaths in a playlist for the `hardsub` command must be on the same drive as the working directory.
