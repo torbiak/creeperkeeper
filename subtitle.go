@@ -16,6 +16,14 @@ import (
 	"unicode/utf8"
 )
 
+const fontconfig = `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+    <dir>C:\Windows\Fonts</dir>
+    <dir>C:\WINNT\Fonts</dir>
+    <cachedir>~/.fontconfig</cachedir>
+</fontconfig>`
+
 func WriteSubtitles(vines []Vine, t time.Duration, tmpl *template.Template, plainEmoji bool) error {
 	var nerrors = 0
 	for _, vine := range vines {
@@ -90,7 +98,11 @@ func RenderSubtitles(outFile, videoFile, fontName string, fontSize int) error {
 		"-i", videoFile,
 		"-vf", style,
 		subtitledVideo)
-	_, err := runCmd(cmd)
+	err := configureFontConfig(cmd)
+	if err != nil {
+		return err
+	}
+	_, err = runCmd(cmd)
 	return err
 }
 
@@ -129,4 +141,54 @@ func relativePaths(filenames []string) ([]string, error) {
 		relpaths[i] = filepath.ToSlash(rel)
 	}
 	return relpaths, nil
+}
+
+// On unix systems fontconfig will usually be installed by a package manager
+// and a config file will have been written to a well-known path. But on
+// windows fontconfig is most likely provided by ffmpeg and will not be
+// configured. Some versions of ffmpeg that I've used have mostly reasonable
+// fallback settings and the subtitles filter works as long as
+// force_style='Fontname=<font>' is specified, but others don't, so in the
+// interests of saving users frustration, write a basic fontconfig config file
+// to the user's homedir and set FONTCONFIG_FILE to point at it.
+func configureFontConfig(cmd *exec.Cmd) error {
+	// Return early if fontconfig is probably already configured.
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	if os.Getenv("FONTCONFIG_FILE") != "" {
+		return nil
+	}
+
+	// Determine the file location.
+	homedir, err := windowsHome()
+	if err != nil {
+		return fmt.Errorf("find home dir: %s", err)
+	}
+	configFile := filepath.Join(homedir, ".fonts.conf")
+
+	// Change the environment.
+	env := os.Environ()
+	env = append(env, "FONTCONFIG_FILE=" + configFile)
+	cmd.Env = env
+
+	// Write the file if needed.
+	if _, err := os.Stat(configFile); err == nil {
+		return nil
+	}
+	return ioutil.WriteFile(configFile, []byte(fontconfig), 0644)
+}
+
+func windowsHome() (string, error) {
+	if home := os.Getenv("HOME"); home != "" {
+		return home, nil
+	}
+	drive, path := os.Getenv("HOMEDRIVE"), os.Getenv("HOMEPATH")
+	if drive != "" && path != "" {
+		return drive + path, nil
+	}
+	if profile := os.Getenv("USERPROFILE"); profile != "" {
+		return profile, nil
+	}
+	return "", fmt.Errorf("HOME, HOMEDRIVE, HOMEPATH, and USERPROFILE are empty")
 }
