@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"path/filepath"
 	"text/template"
 	"time"
 	"unicode"
@@ -46,13 +48,20 @@ func RenderAllSubtitles(filenames []string, fontName string, fontSize int) error
 		return fmt.Errorf("ffmpeg not found in PATH")
 	}
 
+	if runtime.GOOS == "windows" {
+		filenames, err = relativePaths(filenames)
+		if err != nil {
+			return fmt.Errorf("give path to subtitles filter: %s", err)
+		}
+	}
+
 	f := func(i interface{}) error {
 		video := i.(string)
 		subbed := SubtitledVideoFilename(video)
 		return RenderSubtitles(subbed, video, fontName, fontSize)
 	}
 
-	// Convert []sting to []interface{}
+	// Convert []string to []interface{}
 	jobs := make([]interface{}, len(filenames))
 	for i, f := range filenames {
 		jobs[i] = f
@@ -100,4 +109,24 @@ func removeEmojiVariationSelectors(s string) string {
 
 func SubtitledVideoFilename(videoFile string) string {
 	return strings.TrimSuffix(videoFile, ".mp4") + ".sub.mp4"
+}
+
+func relativePaths(filenames []string) ([]string, error) {
+	relpaths := make([]string, len(filenames))
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	for i, f := range filenames {
+		abs, err := filepath.Abs(f)
+		if err != nil {
+			return nil, err
+		}
+		rel, err := filepath.Rel(wd, abs)
+		if err != nil {
+			return nil, err
+		}
+		relpaths[i] = filepath.ToSlash(rel)
+	}
+	return relpaths, nil
 }

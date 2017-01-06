@@ -494,3 +494,20 @@ func TestScaleAll(t *testing.T) {
 		}
 	}
 }
+
+func TestRelativePaths(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	abspath := filepath.Join(wd, "bogus1", "bogus2", "bogus3.mp4")
+	paths := []string{"random.mp4", abspath}
+	want := []string{"random.mp4", "bogus1/bogus2/bogus3.mp4"}
+	got, err := relativePaths(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
