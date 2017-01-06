@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"regexp"
 	"path/filepath"
+	"io"
 	"io/ioutil"
 	"runtime"
 )
@@ -115,5 +116,32 @@ func scale(file string) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(scaled, file)
+	return moveFile(scaled, file)
+}
+
+func moveFile(dst, src string) (err error) {
+	// Try a cheap rename first.
+	err = os.Rename(dst, src)
+	if err == nil {
+		return
+	}
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := dstFile.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+	return os.Remove(src)
 }
