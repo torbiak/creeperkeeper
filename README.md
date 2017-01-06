@@ -19,6 +19,10 @@ Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render
     # Losslessly concatenate a playlist of MP4 videos:
     crkr concat <m3u_in> <video_out>
 
+## Video
+
+For video instructions for installation and use, watch [Creeper Keeper: Windows primer](https://www.youtube.com/watch?v=E8PizK-HQYw) on youtube.
+
 ## Installation
 
 Download a Creeper Keeper binary from the [releases page](https://github.com/torbiak/creeperkeeper/releases) and [add the directory it's in to the `PATH` environment variable](https://www.java.com/en/download/help/path.xml).
