@@ -182,7 +182,7 @@ func TestReadM3U(t *testing.T) {
 	playlist := `#EXTM3U
 #EXTINF:-1,Guys be like #superbowl #sexism #relatable
 Mz2Wzi73VnI.mp4
-#nosubtitles
+#comment
 #EXTINF:-1,Idiots Assemble!
 bnmHnwVILKD.mp4`
 	want := []string{"Mz2Wzi73VnI.mp4", "bnmHnwVILKD.mp4"}
@@ -320,7 +320,7 @@ func TestHardSubM3U(t *testing.T) {
 	playlist := fmt.Sprintf(`#EXTM3U
 #EXTINF:-1,Guys be like #superbowl #sexism #relatable
 %s
-#nosubtitles
+#comment
 #EXTINF:-1,Idiots Assemble!
 %s
 #EXTINF:-1,My First Vine.
@@ -338,12 +338,12 @@ func TestHardSubM3U(t *testing.T) {
 	want := fmt.Sprintf(`#EXTM3U
 #EXTINF:-1,Guys be like #superbowl #sexism #relatable
 %s
-#nosubtitles
+#comment
 #EXTINF:-1,Idiots Assemble!
 %s
 #EXTINF:-1,My First Vine.
 %s
-`, subbed[0], videos[1], videos[2])
+`, subbed[0], subbed[1], videos[2])
 	got := b.String()
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
