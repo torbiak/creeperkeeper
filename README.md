@@ -1,6 +1,6 @@
 # Creeper Keeper
 
-Easily create Vine compilations with subtitles generated from metadata.
+Easily download Vines and create compilations with subtitles generated from metadata.
 
 Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render the subtitles and combine them all.
 
