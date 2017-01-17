@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -125,12 +126,13 @@ func vineHTMLToVines(html []byte) (vines []Vine, err error) {
 				return nil, err
 			}
 			vines = append(vines, Vine{
-				Title:    jvine.Description,
-				Uploader: jvine.Username,
-				URL:      jurl.VideoURL,
-				UUID:     jvine.ShortID,
-				Created:  created,
-				Venue:    jvine.VenueName,
+				Title:      jvine.Description,
+				Uploader:   jvine.Username,
+				UploaderID: strconv.FormatInt(jvine.UserID, 10),
+				URL:        jurl.VideoURL,
+				UUID:       jvine.ShortID,
+				Created:    created,
+				Venue:      jvine.VenueName,
 			})
 			return vines, nil
 		}
@@ -210,12 +212,13 @@ func timelinePageVines(url string) (vines []Vine, more bool, err error) {
 			return nil, false, err
 		}
 		vines = append(vines, Vine{
-			Title:    tv.Description,
-			Uploader: tv.Username,
-			URL:      tv.VideoURL,
-			UUID:     vineURLToUUID(tv.PermalinkURL),
-			Created:  created,
-			Venue:    tv.VenueName,
+			Title:      tv.Description,
+			Uploader:   tv.Username,
+			UploaderID: strconv.FormatInt(tv.UserID, 10),
+			URL:        tv.VideoURL,
+			UUID:       vineURLToUUID(tv.PermalinkURL),
+			Created:    created,
+			Venue:      tv.VenueName,
 		})
 	}
 	more = tr.Data.NextPage > 0
@@ -259,6 +262,21 @@ func vineURLToUUID(url string) string {
 	return string(m[1])
 }
 
+func FilterOutReposts(vines []Vine, url string) ([]Vine, error) {
+	userid, err := userURLToUserID(url)
+	if err != nil {
+		return vines, err
+	}
+	filtered := []Vine{}
+	for _, vine := range vines {
+		if vine.UploaderID != userid {
+			continue
+		}
+		filtered = append(filtered, vine)
+	}
+	return filtered, nil
+}
+
 type jsonVineEnvelope struct {
 	Success bool
 	Error   string
@@ -268,6 +286,7 @@ type jsonVineEnvelope struct {
 type jsonMap map[string]jsonVine
 type jsonVine struct {
 	Username    string
+	UserID      int64
 	Description string
 	ShortID     string
 	VideoURLs   []jsonVideoURL
@@ -296,6 +315,7 @@ type timelineVine struct {
 	PermalinkURL string
 	VenueName    string
 	Created      string
+	UserID       int64
 }
 
 // User API JSON structures

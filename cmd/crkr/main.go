@@ -21,10 +21,11 @@ type Cmd interface {
 }
 
 type GetCmd struct {
-	flagSet  *flag.FlagSet
-	force    bool
-	url      string
-	playlist string
+	flagSet   *flag.FlagSet
+	force     bool
+	url       string
+	playlist  string
+	noreposts bool
 }
 
 func (c *GetCmd) PrintUsage(w io.Writer) {
@@ -40,6 +41,7 @@ func (c *GetCmd) flags() *flag.FlagSet {
 	c.flagSet = flag.NewFlagSet("get", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
 	c.flagSet.BoolVar(&c.force, "force", false, "overwrite video files")
+	c.flagSet.BoolVar(&c.noreposts, "noreposts", false, "don't download reposts")
 	return c.flagSet
 }
 
@@ -52,6 +54,13 @@ func (c *GetCmd) Run(args []string) {
 	vines, err := crkr.ExtractVines(c.url)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if c.noreposts {
+		vines, err = crkr.FilterOutReposts(vines, c.url)
+		if err != nil {
+			log.Println("filter out reposts:", err)
+		}
 	}
 
 	nerrors := 0
@@ -117,7 +126,6 @@ func writeM3U(m3uFile string, vines []crkr.Vine) (err error) {
 	}
 	return nil
 }
-
 
 type SubtitlesCmd struct {
 	flagSet    *flag.FlagSet
@@ -337,7 +345,6 @@ func (c *ConcatCmd) parseArgs(args []string) error {
 	c.video = flags.Arg(1)
 	return nil
 }
-
 
 func printCmdUsage(w io.Writer, cmdUsage string, flags *flag.FlagSet) {
 	fmt.Fprintln(w, cmdUsage)

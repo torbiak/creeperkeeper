@@ -16,12 +16,13 @@ import (
 var Verbose = false
 
 type Vine struct {
-	Title    string
-	Uploader string
-	URL      string
-	UUID     string
-	Venue    string
-	Created  time.Time
+	Title      string
+	Uploader   string
+	UploaderID string
+	URL        string
+	UUID       string
+	Venue      string
+	Created    time.Time
 }
 
 func (v Vine) Download(w io.Writer) error {
