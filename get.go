@@ -187,29 +187,35 @@ func postedVines(userID string) (vines []Vine, err error) {
 }
 
 func timelineVines(url string) (vines []Vine, err error) {
-	more := true
-	for i := 1; more; i++ {
-		urlWithParams := fmt.Sprintf("%s?page=%d&size=100", url, i)
+	anchor := ""
+	for i := 1; anchor != "" || i == 1; i++ {
+		urlWithParams := fmt.Sprintf("%s?page=%d&anchor=%s&size=100", url, i, anchor)
 		var pageVines []Vine
-		pageVines, more, err = timelinePageVines(urlWithParams)
+		pageVines, anchor, err = timelinePageVines(urlWithParams)
 		if err != nil {
 			return nil, err
 		}
+		if Verbose {
+			log.Printf("page %d of metadata has %d vines", i, len(pageVines))
+		}
 		vines = append(vines, pageVines...)
+	}
+	if Verbose {
+		log.Printf("got metadata for %d vines", len(vines))
 	}
 	return vines, nil
 }
 
-func timelinePageVines(url string) (vines []Vine, more bool, err error) {
+func timelinePageVines(url string) (vines []Vine, anchor string, err error) {
 	var tr timelineResult
 	err = deserialize(url, &tr)
 	if err != nil {
-		return nil, false, err
+		return nil, "", err
 	}
 	for _, tv := range tr.Data.Records {
 		created, err := time.Parse(vineDateFormat, tv.Created)
 		if err != nil {
-			return nil, false, err
+			return nil, "", err
 		}
 		vines = append(vines, Vine{
 			Title:      tv.Description,
@@ -221,8 +227,7 @@ func timelinePageVines(url string) (vines []Vine, more bool, err error) {
 			Venue:      tv.VenueName,
 		})
 	}
-	more = tr.Data.NextPage > 0
-	return vines, more, nil
+	return vines, tr.Data.AnchorStr, nil
 }
 
 // deserialize GETs a JSON API endpoint, unwraps the enveloping object and
@@ -305,8 +310,8 @@ type timelineResult struct {
 	Error   string
 }
 type timelineRecords struct {
-	Records  []timelineVine
-	NextPage int
+	Records   []timelineVine
+	AnchorStr string
 }
 type timelineVine struct {
 	Username     string
