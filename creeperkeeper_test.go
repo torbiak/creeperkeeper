@@ -433,7 +433,7 @@ func TestVideoDimensions(t *testing.T) {
 		t.Fatal(err)
 	}
 	if wantW != gotW || wantH != gotH {
-		t.Fatalf("got %dx%d, want 720x720", gotW, gotH, wantW, gotH)
+		t.Fatalf("got %dx%d, want %dx%d", gotW, gotH, wantW, gotH)
 	}
 }
 
@@ -461,7 +461,7 @@ func TestScale(t *testing.T) {
 		t.Fatal(err)
 	}
 	if wantW != gotW || wantH != gotH {
-		t.Fatalf("got %dx%d, want 720x720", gotW, gotH, wantW, gotH)
+		t.Fatalf("got %dx%d, want %dx%d", gotW, gotH, wantW, gotH)
 	}
 }
 
@@ -493,7 +493,7 @@ func TestScaleAll(t *testing.T) {
 			t.Error(err)
 		}
 		if wantW != gotW || wantH != gotH {
-			t.Error("%s: got %dx%d, want 720x720", video, gotW, gotH, wantW, gotH)
+			t.Errorf("%s: got %dx%d, want %dx%d", video, gotW, gotH, wantW, gotH)
 		}
 	}
 }
@@ -541,6 +541,6 @@ func TestFilterOutReposts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(filtered) != 1 && filtered[0].UploaderID == "76" {
-		t.Fatalf("got %s, want just Jack's vine")
+		t.Fatalf("got %s, want just Jack's vine", filtered)
 	}
 }
