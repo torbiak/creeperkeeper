@@ -25,21 +25,24 @@ For video instructions for installation and use, watch [Creeper Keeper: Windows 
 
 ## Installation
 
+### crkr
+
 Download a Creeper Keeper binary from the [releases page](https://github.com/torbiak/creeperkeeper/releases) and [add the directory it's in to the `PATH` environment variable](https://www.java.com/en/download/help/path.xml).
 
-Install ffmpeg with libass support. `ffmpeg` and `ffprobe` must be in a directory in `PATH` for Creeper Keeper to be able to call them.
+Mac OSX users can change `PATH` by opening `Terminal.app` and running the following, assuming the `crkr` binary was extracted to `$HOME/bin` (ie. `/Users/YOUR_USERNAME/bin`):
 
-### Windows
+     echo 'PATH=$PATH:$HOME/bin' >> ~/.bashrc
+     source ~/.bashrc
 
-Install ffmpeg from [zeranoe](https://ffmpeg.org/download.html#build-windows).
+### ffmpeg
 
-### OSX
+If you want to burn hard subtitles or combine videos you'll need to install ffmpeg with libass support. `ffmpeg` and `ffprobe` must be in a directory in `PATH` for Creeper Keeper to be able to call them.
 
-[Install ffmpeg using homebrew](https://trac.ffmpeg.org/wiki/CompilationGuide/MacOSX#ffmpegthroughHomebrew).
+**Windows:** Install ffmpeg from [zeranoe](https://ffmpeg.org/download.html#build-windows).
 
-### Linux
+**OSX:** [Install ffmpeg using homebrew](https://trac.ffmpeg.org/wiki/CompilationGuide/MacOSX#ffmpegthroughHomebrew).
 
-If the version of ffmpeg supplied by your package manager doesn't have libass support, compile from source and give `configure` the `--with-libass` flag.
+**Linux:** If the version of ffmpeg supplied by your package manager doesn't have libass support, compile from source and give `configure` the `--with-libass` flag.
 
 ## Description
 
