@@ -1,16 +1,16 @@
 package creeperkeeper
 
 import (
+	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"fmt"
-	"strconv"
-	"regexp"
 	"path/filepath"
-	"io"
-	"io/ioutil"
+	"regexp"
 	"runtime"
+	"strconv"
 )
 
 var widthRE = regexp.MustCompile(`streams\.stream\.\d+\.width=(\d+)`)
@@ -24,7 +24,7 @@ func ScaleAll(files []string) error {
 	}
 	f := func(i interface{}) error {
 		file := i.(string)
-		err :=  scale(file)
+		err := scale(file)
 		if err != nil {
 			log.Printf("scale %s: %s", file, err)
 		}
@@ -65,7 +65,7 @@ func NeedScaling(files []string) ([]string, error) {
 func videoDimensions(file string) (width int, height int, err error) {
 	cmd := exec.Command(
 		"ffprobe",
-		"-v", "warning", 
+		"-v", "warning",
 		"-show_streams",
 		"-of", "flat",
 		file)
@@ -77,7 +77,7 @@ func videoDimensions(file string) (width int, height int, err error) {
 	m := widthRE.FindSubmatch(stdout)
 	if m == nil {
 		err = fmt.Errorf("no width in ffprobe output: %q", stdout)
-		return 
+		return
 	}
 	width, err = strconv.Atoi(string(m[1]))
 	if err != nil {
@@ -87,7 +87,7 @@ func videoDimensions(file string) (width int, height int, err error) {
 	m = heightRE.FindSubmatch(stdout)
 	if m == nil {
 		err = fmt.Errorf("no height in ffprobe output: %q", stdout)
-		return 
+		return
 	}
 	height, err = strconv.Atoi(string(m[1]))
 	return

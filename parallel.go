@@ -33,6 +33,7 @@ func parallel(jobs []interface{}, f func(interface{}) error, atOnce int) (nerr i
 		}()
 	}
 	wg.Wait()
+	close(jobq)
 	return nerrors.val
 }
 

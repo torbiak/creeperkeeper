@@ -7,9 +7,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
-	"path/filepath"
 	"text/template"
 	"time"
 	"unicode"
@@ -169,7 +169,7 @@ func configureFontConfig(cmd *exec.Cmd) error {
 
 	// Change the environment.
 	env := os.Environ()
-	env = append(env, "FONTCONFIG_FILE=" + configFile)
+	env = append(env, "FONTCONFIG_FILE="+configFile)
 	cmd.Env = env
 
 	// Write the file if needed.

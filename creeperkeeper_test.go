@@ -27,13 +27,12 @@ func TestExtractVines_singleVine(t *testing.T) {
 	}
 	want := []Vine{
 		{
-			Title:    "Chicken.",
-			Uploader: "Jack",
+			Title:      "Chicken.",
+			Uploader:   "Jack",
 			UploaderID: "76",
-			URL:      "http://v.cdn.vine.co/v/videos/7508FF74-000E-48F3-9E5E-D7218D5F8FFB-7580-000002B248D861FF_1.1.mp4?versionId=6LYxpZTqmX86aZ9uq5b8e.PqOWi45U9T",
-			UUID:     "b9KOOWX7HUx",
-			Venue:    "The Fremont Diner",
-			Created:  time.Date(2013, 5, 19, 21, 12, 31, 0, time.UTC),
+			URL:        "http://v.cdn.vine.co/v/videos/7508FF74-000E-48F3-9E5E-D7218D5F8FFB-7580-000002B248D861FF_1.1.mp4?versionId=6LYxpZTqmX86aZ9uq5b8e.PqOWi45U9T",
+			UUID:       "b9KOOWX7HUx",
+			Created:    time.Date(2013, 5, 19, 21, 12, 31, 0, time.UTC),
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -45,52 +44,29 @@ func TestExtractVines_userPosts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long test")
 	}
-	vines, err := ExtractVines("https://vine.co/Mielmonster")
+	vines, err := ExtractVines("https://vine.co/u/56")
 	if err != nil {
 		t.Fatal(err)
 	}
-	min := 250
-	if len(vines) < min {
-		t.Errorf("got %d, want %d or more", len(vines), min)
+	wantLen := 63
+	if len(vines) != wantLen {
+		t.Errorf("got %d, want %d or more", len(vines), wantLen)
 	}
-	last := vines[len(vines)-1]
-	want := Vine{
-		Title:    "Guys be like #superbowl #sexism #relatable",
-		Uploader: "ig/yt: mielmonster",
-		UploaderID: "973499529959968768",
-		URL:      "http://mtc.cdn.vine.co/r/videos/B3748976821041887404950200320_11f822db164.4.7.7604697388532430910_B7HPE9tNTc1NVJWW.uogDgFWflxqpHF4exxF3SWcrtpPkMtCSDp6vSp.QWqMgrI_.mp4?versionId=3WCYDYMNNfVZnRTXBWB.CHYN3JhMYdoJ",
-		UUID:     "Mz2Wzi73VnI",
-		Venue:    "The Bro Palace - Los Angeles Branch",
-		Created:  time.Date(2014, 2, 2, 22, 22, 34, 0, time.UTC),
+	wantTitles := []string{"le rain.", "spill", "UCB", "ballgame", "kinect"}
+	var missing []string
+	for _, title := range wantTitles {
+		found := false
+		for _, vine := range vines {
+			if vine.Title == title {
+				found = true
+			}
+		}
+		if !found {
+			missing = append(missing, title)
+		}
 	}
-	if !reflect.DeepEqual(last, want) {
-		t.Errorf("got %v, want %v", last, want)
-	}
-}
-
-func TestExtractVines_userLikes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping long test")
-	}
-	vines, err := ExtractVines("https://vine.co/u/1108673385032228864/likes")
-	if err != nil {
-		t.Fatal(err)
-	}
-	min := 400
-	if len(vines) < min {
-		t.Errorf("got %d, want %d or more", len(vines), min)
-	}
-	last := vines[len(vines)-1]
-	want := Vine{
-		Title:    "Idiots Assemble!",
-		Uploader: "Ben Willbond",
-		UploaderID: "909563704780140544",
-		URL:      "http://mtc.cdn.vine.co/r/videos/97BE877A-800C-4991-94A5-37CACA2DB44C-137-0000000D404033B5_1.0.4.mp4?versionId=QAVqOEAfFf_LXlwpjjXmlvai7qOmxhoj",
-		UUID:     "bnmHnwVILKD",
-		Created:  time.Date(2013, 2, 5, 11, 6, 16, 0, time.UTC),
-	}
-	if !reflect.DeepEqual(last, want) {
-		t.Errorf("got %v, want %v", last, want)
+	if len(missing) > 0 {
+		t.Errorf("missing titles: %s", strings.Join(missing, ", "))
 	}
 }
 
@@ -387,7 +363,6 @@ func TestMetadataCodec(t *testing.T) {
 			Uploader: "Jack",
 			URL:      "http://v.cdn.vine.co/v/videos/7508FF74-000E-48F3-9E5E-D7218D5F8FFB-7580-000002B248D861FF_1.1.mp4?versionId=6LYxpZTqmX86aZ9uq5b8e.PqOWi45U9T",
 			UUID:     "b9KOOWX7HUx",
-			Venue:    "The Fremont Diner",
 			Created:  time.Date(2013, 5, 19, 21, 12, 31, 0, time.UTC),
 		},
 	}
@@ -512,35 +487,5 @@ func TestRelativePaths(t *testing.T) {
 	}
 	if !reflect.DeepEqual(want, got) {
 		t.Fatalf("got %s, want %s", got, want)
-	}
-}
-
-func TestFilterOutReposts(t *testing.T) {
-	url := "https://vine.co/u/76"
-	vines := []Vine{
-		{
-			Title:    "Chicken.",
-			Uploader: "Jack",
-			UploaderID: "76",
-			URL:      "http://v.cdn.vine.co/v/videos/7508FF74-000E-48F3-9E5E-D7218D5F8FFB-7580-000002B248D861FF_1.1.mp4?versionId=6LYxpZTqmX86aZ9uq5b8e.PqOWi45U9T",
-			UUID:     "b9KOOWX7HUx",
-			Venue:    "The Fremont Diner",
-			Created:  time.Date(2013, 5, 19, 21, 12, 31, 0, time.UTC),
-		}, {
-			Title:    "Guys be like #superbowl #sexism #relatable",
-			Uploader: "ig/yt: mielmonster",
-			UploaderID: "973499529959968768",
-			URL:      "http://mtc.cdn.vine.co/r/videos/B3748976821041887404950200320_11f822db164.4.7.7604697388532430910_B7HPE9tNTc1NVJWW.uogDgFWflxqpHF4exxF3SWcrtpPkMtCSDp6vSp.QWqMgrI_.mp4?versionId=3WCYDYMNNfVZnRTXBWB.CHYN3JhMYdoJ",
-			UUID:     "Mz2Wzi73VnI",
-			Venue:    "The Bro Palace - Los Angeles Branch",
-			Created:  time.Date(2014, 2, 2, 22, 22, 34, 0, time.UTC),
-		},
-	}
-	filtered, err := FilterOutReposts(vines, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(filtered) != 1 && filtered[0].UploaderID == "76" {
-		t.Fatalf("got %s, want just Jack's vine", filtered)
 	}
 }

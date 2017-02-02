@@ -21,7 +21,6 @@ type Vine struct {
 	UploaderID string
 	URL        string
 	UUID       string
-	Venue      string
 	Created    time.Time
 }
 

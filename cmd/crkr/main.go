@@ -21,11 +21,10 @@ type Cmd interface {
 }
 
 type GetCmd struct {
-	flagSet   *flag.FlagSet
-	force     bool
-	url       string
-	playlist  string
-	noreposts bool
+	flagSet  *flag.FlagSet
+	force    bool
+	url      string
+	playlist string
 }
 
 func (c *GetCmd) PrintUsage(w io.Writer) {
@@ -41,7 +40,6 @@ func (c *GetCmd) flags() *flag.FlagSet {
 	c.flagSet = flag.NewFlagSet("get", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
 	c.flagSet.BoolVar(&c.force, "force", false, "overwrite video files")
-	c.flagSet.BoolVar(&c.noreposts, "noreposts", false, "don't download reposts")
 	return c.flagSet
 }
 
@@ -54,13 +52,6 @@ func (c *GetCmd) Run(args []string) {
 	vines, err := crkr.ExtractVines(c.url)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	if c.noreposts {
-		vines, err = crkr.FilterOutReposts(vines, c.url)
-		if err != nil {
-			log.Println("filter out reposts:", err)
-		}
 	}
 
 	nerrors := 0

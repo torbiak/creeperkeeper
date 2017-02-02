@@ -8,20 +8,15 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-const baseURL = "https://vine.co"
 const vineDateFormat = "2006-01-02T15:04:05.999999"
 
 var fallbackUUIDCount = 0
 var uuidMutex = sync.Mutex{}
-
-var userURLRE = regexp.MustCompile(`(?:https?://)?vine\.co/(u/)?([^/]+)(/likes)?/?(\?.*)?$`)
-var vineURLRE = regexp.MustCompile(`https://vine\.co/v/([a-zA-Z0-9]+)$`)
 
 type vineExtractor func(url string) (vines []Vine, err error)
 
@@ -65,169 +60,121 @@ func DownloadVines(vines []Vine) error {
 // profile, or a user's likes. API requests are made as necessary to get all of
 // a user's posts or likes.
 func ExtractVines(url string) (vines []Vine, err error) {
-	extractors := []vineExtractor{
-		vineExtractor(vineURLToVines),
-		vineExtractor(userURLToVines),
+	extractors := map[string]vineExtractor{
+		"individual": vineExtractor(vineURLToVines),
+		"user":       vineExtractor(userURLToVines),
 	}
 	var errors []string
-	for _, extractor := range extractors {
+	for name, extractor := range extractors {
 		vines, err := extractor(url)
 		if err != nil {
-			errors = append(errors, err.Error())
+			errors = append(errors, fmt.Sprintf("%s: %s", name, err.Error()))
 			continue
 		}
 		return vines, nil
 	}
-	return nil, fmt.Errorf("vine extraction: %s", strings.Join(errors, ", "))
+	return nil, fmt.Errorf("vine extraction: %s", strings.Join(errors, "\n"))
 }
 
-// vineURLToVines GETs url, which is expected to the the url for a single vine,
-// and extracts the vine's metadata from some JSON embedded in it.
+// vineURLToVines gets vine metadata for the vine referred to by the given URL.
 func vineURLToVines(url string) (vines []Vine, err error) {
-	matched, err := regexp.MatchString(`https?://(?:www\.)?vine\.co/(?:v|oembed)/(?P<id>\w+)`, url)
-	if !matched {
-		return nil, fmt.Errorf("url must be for an individual vine: %s", url)
-	}
-	if err != nil {
-		return nil, err
-	}
-	// There doesn't seem to be an api endpoint for vines, so look in the html.
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return vineHTMLToVines(body)
-}
-
-func vineHTMLToVines(html []byte) (vines []Vine, err error) {
-	jsonPattern := regexp.MustCompile(`window\.POST_DATA\s*=\s*({.+?});\s*</script>`)
-	m := jsonPattern.FindSubmatch(html)
+	vineURLRE := regexp.MustCompile(`https?://(?:www\.)?vine\.co/(?:v|oembed)/([^?/]+)`)
+	m := vineURLRE.FindStringSubmatch(url)
 	if len(m) == 0 {
-		return nil, fmt.Errorf("no vine metadata found in html")
+		return nil, fmt.Errorf("vineURLToVines: unrecognized url: %s", url)
 	}
-	var jm jsonMap
-	err = json.Unmarshal(m[1], &jm)
+	id := m[1]
+	vine, err := getVine(id)
 	if err != nil {
 		return nil, err
 	}
-	var jvine jsonVine
-	for _, jvine = range jm { // Get first value from map.
-		break
-	}
-	for _, jurl := range jvine.VideoURLs {
-		if jurl.ID == "original" {
-			created, err := time.Parse(vineDateFormat, jvine.Created)
-			if err != nil {
-				return nil, err
-			}
-			vines = append(vines, Vine{
-				Title:      jvine.Description,
-				Uploader:   jvine.Username,
-				UploaderID: strconv.FormatInt(jvine.UserID, 10),
-				URL:        jurl.VideoURL,
-				UUID:       jvine.ShortID,
-				Created:    created,
-				Venue:      jvine.VenueName,
-			})
-			return vines, nil
-		}
-	}
-	return nil, nil
+	return []Vine{vine}, nil
 }
 
-func userURLToVines(url string) (vines []Vine, err error) {
+func getVine(id string) (Vine, error) {
+	var jv jsonVine
+	url := fmt.Sprintf("https://archive.vine.co/posts/%s.json", id)
+	err := deserialize(url, &jv)
+	if err != nil {
+		return Vine{}, fmt.Errorf("getVine: %s", err)
+	}
+	created, err := time.Parse(vineDateFormat, jv.Created)
+	if err != nil {
+		return Vine{}, fmt.Errorf("getVine: %s", err)
+	}
+	return Vine{
+		Title:      jv.Description,
+		Uploader:   jv.Username,
+		UploaderID: jv.UserIdStr,
+		URL:        jv.VideoURL,
+		UUID:       id,
+		Created:    created,
+	}, nil
+}
+
+func userURLToVines(url string) ([]Vine, error) {
 	userID, err := userURLToUserID(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userURLToVines: %s", err)
 	}
-	m := userURLRE.FindStringSubmatch(url)
-	if len(m[3]) > 0 {
-		vines, err = likedVines(userID)
-	} else {
-		vines, err = postedVines(userID)
-	}
+	var ju jsonUser
+	postsURL := fmt.Sprintf("https://archive.vine.co/profiles/%s.json", userID)
+	err = deserialize(postsURL, &ju)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userURLToVines: %s", err)
+	}
+
+	var vines []Vine
+	vineq := make(chan Vine)
+	wg := sync.WaitGroup{}
+	go func() {
+		wg.Add(1)
+		for vine := range vineq {
+			vines = append(vines, vine)
+		}
+		wg.Done()
+	}()
+	jobs := make([]interface{}, len(ju.Posts))
+	for i, v := range ju.Posts {
+		jobs[i] = v
+	}
+	f := func(i interface{}) error {
+		id := i.(string)
+		vine, err := getVine(id)
+		if err != nil {
+			log.Printf("get vine metadata for %s: %s", id, err)
+			return err
+		}
+		vineq <- vine
+		return nil
+	}
+	nerr := parallel(jobs, f, 8)
+	close(vineq)
+	wg.Wait()
+	if nerr > 0 {
+		return vines, fmt.Errorf("get vine metadata: %d/%d failed", nerr, len(ju.Posts))
 	}
 	return vines, nil
 }
 
 func userURLToUserID(url string) (string, error) {
+	userURLRE := regexp.MustCompile(`(?:https?://)?vine\.co/(u/)?([^/]+)/?(?:\?.*)?$`)
 	m := userURLRE.FindStringSubmatch(url)
 	if len(m) == 0 {
 		return "", fmt.Errorf("unrecognized vine user url: %q", url)
 	}
 	isVanity := len(m[1]) == 0
 	if isVanity {
-		profileURL := fmt.Sprintf("%s/api/users/profiles/vanity/%s", baseURL, m[2])
-		var ur userResult
-		err := deserialize(profileURL, &ur)
+		profileURL := fmt.Sprintf("https://vine.co/api/users/profiles/vanity/%s", m[2])
+		var jve jsonVanityEnvelope
+		err := deserialize(profileURL, &jve)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprint(ur.Data.UserID), nil
+		return fmt.Sprint(jve.Data.UserID), nil
 	} else {
 		return m[2], nil
 	}
-}
-
-func likedVines(userID string) (vines []Vine, err error) {
-	url := fmt.Sprintf("%s/api/timelines/users/%s/likes", baseURL, userID)
-	return timelineVines(url)
-}
-
-func postedVines(userID string) (vines []Vine, err error) {
-	url := fmt.Sprintf("%s/api/timelines/users/%s", baseURL, userID)
-	return timelineVines(url)
-}
-
-func timelineVines(url string) (vines []Vine, err error) {
-	anchor := ""
-	for i := 1; anchor != "" || i == 1; i++ {
-		urlWithParams := fmt.Sprintf("%s?page=%d&anchor=%s&size=100", url, i, anchor)
-		var pageVines []Vine
-		pageVines, anchor, err = timelinePageVines(urlWithParams)
-		if err != nil {
-			return nil, err
-		}
-		if Verbose {
-			log.Printf("page %d of metadata has %d vines", i, len(pageVines))
-		}
-		vines = append(vines, pageVines...)
-	}
-	if Verbose {
-		log.Printf("got metadata for %d vines", len(vines))
-	}
-	return vines, nil
-}
-
-func timelinePageVines(url string) (vines []Vine, anchor string, err error) {
-	var tr timelineResult
-	err = deserialize(url, &tr)
-	if err != nil {
-		return nil, "", err
-	}
-	for _, tv := range tr.Data.Records {
-		created, err := time.Parse(vineDateFormat, tv.Created)
-		if err != nil {
-			return nil, "", err
-		}
-		vines = append(vines, Vine{
-			Title:      tv.Description,
-			Uploader:   tv.Username,
-			UploaderID: strconv.FormatInt(tv.UserID, 10),
-			URL:        tv.VideoURL,
-			UUID:       vineURLToUUID(tv.PermalinkURL),
-			Created:    created,
-			Venue:      tv.VenueName,
-		})
-	}
-	return vines, tr.Data.AnchorStr, nil
 }
 
 // deserialize GETs a JSON API endpoint, unwraps the enveloping object and
@@ -242,22 +189,18 @@ func deserialize(url string, d interface{}) error {
 	if err != nil {
 		return err
 	}
-	var env jsonVineEnvelope
-	err = json.Unmarshal(body, &env)
-	if err != nil {
-		return fmt.Errorf("unrecognized json: %s", body)
-	}
-	if !env.Success {
-		return fmt.Errorf("GET %q: status %d: %s", url, resp.StatusCode, env.Error)
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, body)
 	}
 	err = json.Unmarshal(body, &d)
 	if err != nil {
-		return err
+		return fmt.Errorf("unrecognized json %s", err)
 	}
 	return nil
 }
 
 func vineURLToUUID(url string) string {
+	vineURLRE := regexp.MustCompile(`https://vine\.co/v/([a-zA-Z0-9]+)$`)
 	m := vineURLRE.FindStringSubmatch(url)
 	if len(m) == 0 {
 		uuidMutex.Lock()
@@ -267,66 +210,22 @@ func vineURLToUUID(url string) string {
 	return string(m[1])
 }
 
-func FilterOutReposts(vines []Vine, url string) ([]Vine, error) {
-	userid, err := userURLToUserID(url)
-	if err != nil {
-		return vines, err
-	}
-	filtered := []Vine{}
-	for _, vine := range vines {
-		if vine.UploaderID != userid {
-			continue
-		}
-		filtered = append(filtered, vine)
-	}
-	return filtered, nil
+type jsonUser struct {
+	Posts []string
 }
 
-type jsonVineEnvelope struct {
-	Success bool
-	Error   string
-}
-
-// Single-Vine JSON structures
-type jsonMap map[string]jsonVine
 type jsonVine struct {
-	Username    string
-	UserID      int64
 	Description string
-	ShortID     string
-	VideoURLs   []jsonVideoURL
-	VenueName   string
+	Username    string
+	UserIdStr   string
+	VideoURL    string
 	Created     string
-}
-type jsonVideoURL struct {
-	VideoURL string
-	ID       string
-}
-
-// Timeline (posts/likes) API JSON structures
-type timelineResult struct {
-	Data    timelineRecords
-	Success bool
-	Error   string
-}
-type timelineRecords struct {
-	Records   []timelineVine
-	AnchorStr string
-}
-type timelineVine struct {
-	Username     string
-	Description  string
-	VideoURL     string
-	PermalinkURL string
-	VenueName    string
-	Created      string
-	UserID       int64
 }
 
 // User API JSON structures
-type userResult struct {
-	Data jsonUser
+type jsonVanityEnvelope struct {
+	Data jsonVanity
 }
-type jsonUser struct {
+type jsonVanity struct {
 	UserID int64
 }
