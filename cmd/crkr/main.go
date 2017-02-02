@@ -51,7 +51,7 @@ func (c *GetCmd) Run(args []string) {
 
 	vines, err := crkr.ExtractVines(c.url)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	nerrors := 0

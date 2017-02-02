@@ -2,13 +2,13 @@ package creeperkeeper
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 )
@@ -36,9 +36,9 @@ func DownloadVines(vines []Vine) error {
 		}()
 		err = vine.Download(file)
 		if err != nil {
-			log.Printf("get [%s] \"%.20s\": %s", vine.Uploader, vine.Title, err)
+			log.Printf("get %.20q: %s", vine.Title, err)
 		} else if Verbose {
-			log.Printf("got [%s] %s", vine.Uploader, vine.Title)
+			log.Printf("got %q", vine.Title)
 		}
 		return err
 	}
@@ -64,16 +64,22 @@ func ExtractVines(url string) (vines []Vine, err error) {
 		"individual": vineExtractor(vineURLToVines),
 		"user":       vineExtractor(userURLToVines),
 	}
-	var errors []string
+	errs := map[string]error{}
 	for name, extractor := range extractors {
-		vines, err := extractor(url)
+		vines, err = extractor(url)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("%s: %s", name, err.Error()))
-			continue
+			err = fmt.Errorf("%s: %s", name, err.Error())
+			errs[name] = err
 		}
-		return vines, nil
+		if len(vines) > 0 {
+			return vines, err
+		}
 	}
-	return nil, fmt.Errorf("vine extraction: %s", strings.Join(errors, "\n"))
+	s := "vine extraction: "
+	for name, err := range errs {
+		s += fmt.Sprintf("%s: %s", name, err.Error())
+	}
+	return nil, errors.New(s)
 }
 
 // vineURLToVines gets vine metadata for the vine referred to by the given URL.
@@ -96,11 +102,11 @@ func getVine(id string) (Vine, error) {
 	url := fmt.Sprintf("https://archive.vine.co/posts/%s.json", id)
 	err := deserialize(url, &jv)
 	if err != nil {
-		return Vine{}, fmt.Errorf("getVine: %s", err)
+		return Vine{}, fmt.Errorf("getVine %s: %s", id, err)
 	}
 	created, err := time.Parse(vineDateFormat, jv.Created)
 	if err != nil {
-		return Vine{}, fmt.Errorf("getVine: %s", err)
+		return Vine{}, fmt.Errorf("getVine %s: %s", id, err)
 	}
 	return Vine{
 		Title:      jv.Description,
@@ -142,7 +148,6 @@ func userURLToVines(url string) ([]Vine, error) {
 		id := i.(string)
 		vine, err := getVine(id)
 		if err != nil {
-			log.Printf("get vine metadata for %s: %s", id, err)
 			return err
 		}
 		vineq <- vine
