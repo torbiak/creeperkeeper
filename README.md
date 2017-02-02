@@ -4,6 +4,8 @@ Easily download Vines and create compilations with subtitles generated from meta
 
 Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render the subtitles and combine them all.
 
+**2017-02-01: Vine's API has changed and Creeper Keeper cannot currently download any vines.**
+
 **2017-01-23: Note that while reposts no longer appear on users' pages on Vine's web site and the links to users' likes are gone, they are both still available via the API, and Creeper Keeper can still download them. Likes can still be viewed by going to a user's likes URL (eg `https://vine.co/Mielmonster/likes`).**
 
 ## Synopsis
