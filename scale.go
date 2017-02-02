@@ -133,10 +133,11 @@ func moveFile(dst, src string) (err error) {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
+		srcFile.Close()
 		return err
 	}
+	srcFile.Close()
 	return os.Remove(src)
 }
