@@ -116,15 +116,10 @@ func scale(file string) error {
 	if err != nil {
 		return err
 	}
-	return moveFile(scaled, file)
+	return moveFile(file, scaled)
 }
 
 func moveFile(dst, src string) (err error) {
-	// Try a cheap rename first.
-	err = os.Rename(dst, src)
-	if err == nil {
-		return
-	}
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
