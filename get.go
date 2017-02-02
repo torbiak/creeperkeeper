@@ -130,6 +130,10 @@ func userURLToVines(url string) ([]Vine, error) {
 		return nil, fmt.Errorf("userURLToVines: %s", err)
 	}
 
+	if Verbose {
+		log.Printf("getting metadata for %d vines", len(ju.Posts))
+	}
+
 	var vines []Vine
 	vineq := make(chan Vine)
 	wg := sync.WaitGroup{}
