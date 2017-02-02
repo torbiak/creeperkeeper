@@ -2,16 +2,14 @@
 
 Easily download Vines and create compilations with subtitles generated from metadata.
 
-Uses vine.co's API to get a user's posted and liked videos, and ffmpeg to render the subtitles and combine them all.
+Uses vine.co's API to get a user's posted videos, and ffmpeg to render the subtitles and combine them all.
 
-**2017-02-01: Vine's API has changed and Creeper Keeper cannot currently download any vines.**
-
-**2017-01-23: Note that while reposts no longer appear on users' pages on Vine's web site and the links to users' likes are gone, they are both still available via the API, and Creeper Keeper can still download them. Likes can still be viewed by going to a user's likes URL (eg `https://vine.co/Mielmonster/likes`).**
+**2017-02-02: Vine's API has changed and users' likes and reposts are no longer available. Only original posts can be downloaded.**
 
 ## Synopsis
 
-    # Download Vines related to a URL for a single Vine or a user's posts or
-    # likes and write an M3U playlist for them.
+    # Download Vines related to a URL for a single Vine or a user's posts
+    # write an M3U playlist for them.
     crkr get <url> <m3u_out>
 
     # Generate SubRip subtitles.
@@ -52,7 +50,7 @@ If you want to burn hard subtitles or combine videos you'll need to install ffmp
 
 An example workflow:
 
-Use the get command to download Vines. URLs for single Vines or a user's posts or likes are supported. Vines, metadata, and subtitle files are named for the Vine's short ID.
+Use the get command to download Vines. URLs for single Vines or a user's posts are supported. Vines, metadata, and subtitle files are named for the Vine's short ID.
 
     # Produces <UUID>.mp4... <UUID>.json... miel.m3u
     crkr get https://vine.co/u/973499529959968768 miel.m3u
