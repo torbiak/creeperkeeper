@@ -135,3 +135,10 @@ func WriteVineMetadata(vine Vine) error {
 	enc := json.NewEncoder(f)
 	return enc.Encode(vine)
 }
+
+// ByCreated implements sort.Interface
+type ByCreated []Vine
+
+func (a ByCreated) Len() int           { return len(a) }
+func (a ByCreated) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByCreated) Less(i, j int) bool { return a[i].Created.Before(a[j].Created) }

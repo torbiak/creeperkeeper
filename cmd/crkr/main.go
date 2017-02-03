@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"text/template"
 	"time"
 )
@@ -21,10 +22,11 @@ type Cmd interface {
 }
 
 type GetCmd struct {
-	flagSet  *flag.FlagSet
-	force    bool
-	url      string
-	playlist string
+	flagSet   *flag.FlagSet
+	force     bool
+	noreverse bool
+	url       string
+	playlist  string
 }
 
 func (c *GetCmd) PrintUsage(w io.Writer) {
@@ -40,6 +42,7 @@ func (c *GetCmd) flags() *flag.FlagSet {
 	c.flagSet = flag.NewFlagSet("get", flag.ContinueOnError)
 	c.flagSet.SetOutput(ioutil.Discard)
 	c.flagSet.BoolVar(&c.force, "force", false, "overwrite video files")
+	c.flagSet.BoolVar(&c.noreverse, "noreverse", false, "write playlist in chronological order")
 	return c.flagSet
 }
 
@@ -52,6 +55,11 @@ func (c *GetCmd) Run(args []string) {
 	vines, err := crkr.ExtractVines(c.url)
 	if err != nil {
 		log.Print(err)
+	}
+	if c.noreverse {
+		sort.Sort(crkr.ByCreated(vines))
+	} else {
+		sort.Sort(sort.Reverse(crkr.ByCreated(vines)))
 	}
 
 	nerrors := 0
