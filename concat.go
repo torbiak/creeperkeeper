@@ -1,6 +1,7 @@
 package creeperkeeper
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -11,7 +12,8 @@ import (
 // ConcatVideos joins mp4 videos losslessly, like so:
 // ffmpeg -i input1.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate1.ts
 // ffmpeg -i input2.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts intermediate2.ts
-// ffmpeg -i "concat:intermediate1.ts|intermediate2.ts" -c copy -bsf:a aac_adtstoasc output.mp4
+// for f in *.ts; do printf "file '%s'\n" $f; done >files
+// ffmpeg -f concat -i files -c copy output.mp4
 func ConcatVideos(videoFiles []string, outFile string) error {
 	dir, err := ioutil.TempDir("", "crkr")
 	if err != nil {
@@ -29,13 +31,34 @@ func ConcatVideos(videoFiles []string, outFile string) error {
 			return err
 		}
 	}
+
+	tmpFile, err := ioutil.TempFile(dir, "crkr_concat")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+	for _, f := range tsFiles {
+		_, err := fmt.Fprintf(tmpFile, "file '%s'\n", f)
+		if err != nil {
+			tmpFile.Close()
+			return err
+		}
+	}
+	err = tmpFile.Close()
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command(
 		"ffmpeg",
 		"-y",
 		"-v", "warning",
-		"-i", "concat:"+strings.Join(tsFiles, "|"),
+		"-f", "concat",
+		// "safe" filenames are relative and can only consist of
+		// [a-zA-Z0-9_.-].
+		"-safe", "0",
+		"-i", tmpFile.Name(),
 		"-c", "copy",
-		"-bsf:a", "aac_adtstoasc",
 		outFile)
 	_, err = runCmd(cmd)
 	return err
